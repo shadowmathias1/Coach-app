@@ -527,7 +527,7 @@ export default function CoachDashboardPage() {
             </motion.div>
           </div>
 
-          <MagicCard className="mb-8  p-6">
+          <MagicCard className="mb-8 p-6 bg-background-surface/80 border border-border/70 shadow-lg">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{t.quickActions}</h2>
@@ -572,7 +572,7 @@ export default function CoachDashboardPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg bg-background-elevated/60 border border-border">
+              <div className="p-4 rounded-lg bg-background-surface/70 border border-border/70">
                 <p className="font-semibold mb-1">{t.checkinsPending}</p>
                 <p className="text-sm text-text-tertiary">
                   {pendingCheckins} {t.stillDue}
@@ -586,7 +586,7 @@ export default function CoachDashboardPage() {
                   {t.viewClients}
                 </Button>
               </div>
-              <div className="p-4 rounded-lg bg-background-elevated/60 border border-border">
+              <div className="p-4 rounded-lg bg-background-surface/70 border border-border/70">
                 <p className="font-semibold mb-1">{t.inactiveClients}</p>
                 <p className="text-sm text-text-tertiary">
                   {inactiveClients} {t.noActivity}

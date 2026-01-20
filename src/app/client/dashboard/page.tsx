@@ -429,7 +429,7 @@ export default function ClientDashboardPage() {
             </motion.div>
           </div>
 
-          <MagicCard className="mb-8  p-6">
+          <MagicCard className="mb-8 p-6 bg-background-surface/80 border border-border/70 shadow-lg">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-accent" />
@@ -440,7 +440,7 @@ export default function ClientDashboardPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg bg-background-elevated/60 border border-border">
+              <div className="p-4 rounded-lg bg-background-surface/70 border border-border/70">
                 <p className="font-semibold mb-1">{t.reminderWorkout}</p>
                 <p className="text-sm text-text-tertiary">
                   {status.workoutToday ? t.reminderWorkoutDone : t.reminderWorkoutTodo}
@@ -453,7 +453,7 @@ export default function ClientDashboardPage() {
                   />
                 )}
               </div>
-              <div className="p-4 rounded-lg bg-background-elevated/60 border border-border">
+              <div className="p-4 rounded-lg bg-background-surface/70 border border-border/70">
                 <p className="font-semibold mb-1">{t.reminderCheckin}</p>
                 <p className="text-sm text-text-tertiary">
                   {status.checkinThisWeek ? t.reminderCheckinDone : t.reminderCheckinTodo}
