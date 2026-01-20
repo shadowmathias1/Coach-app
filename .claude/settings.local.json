@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"c:\\\\Users\\\\afsar\\\\OneDrive\\\\Bureau\\\\coach-app\")",
+      "Bash(npm run build:*)",
+      "Bash(\"c:\\\\Users\\\\afsar\\\\OneDrive\\\\Bureau\\\\coach-app\\\\src\\\\app\\\\coach\\\\clients\\\\[clientId]\\\\workouts\\\\[workoutId]\\\\page.tsx\")",
+      "Bash(npm install:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
