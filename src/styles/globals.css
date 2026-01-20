@@ -210,13 +210,13 @@
   }
 
   .btn-secondary {
-    @apply btn bg-background-hover text-text-primary border border-border/70 shadow-sm;
-    @apply hover:bg-background-elevated hover:border-primary/40 hover:scale-105;
+    @apply btn bg-background-elevated text-text-primary border border-primary/30 shadow-glow-sm;
+    @apply hover:bg-background-surface hover:border-primary/60 hover:scale-105;
   }
 
   .btn-ghost {
-    @apply btn bg-background-hover/70 text-text-primary border border-border/50;
-    @apply hover:bg-background-elevated hover:border-primary/30 hover:scale-105;
+    @apply btn bg-background-elevated/90 text-text-primary border border-border/80 shadow-sm;
+    @apply hover:bg-background-surface hover:border-primary/40 hover:scale-105;
   }
 
   .btn-danger {
