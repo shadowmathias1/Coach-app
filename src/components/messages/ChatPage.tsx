@@ -940,7 +940,7 @@ export default function ChatPage({ role }: { role: Role }) {
       const newMessage = message as ChatMessage;
       const messageId = newMessage.id;
 
-      // Optimistic update: ajouter le message immédiatement à l'état local
+      // Optimistic update: ajouter le message immediatement a l'etat local
       setMessages((prev) => [...prev, newMessage]);
 
       if (composerFiles.length > 0) {
@@ -1545,4 +1545,3 @@ export default function ChatPage({ role }: { role: Role }) {
     </div>
   );
 }
-

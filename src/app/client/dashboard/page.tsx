@@ -471,7 +471,6 @@ export default function ClientDashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <MagicCard className="relative overflow-hidden border border-border bg-background-surface/80 shadow-lg p-6">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-secondary text-xs uppercase tracking-[0.2em]">{t.workoutsThisWeek}</p>
@@ -487,7 +486,6 @@ export default function ClientDashboardPage() {
             </MagicCard>
 
             <MagicCard className="relative overflow-hidden border border-border bg-background-surface/80 shadow-lg p-6">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-secondary to-accent" />
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-secondary text-xs uppercase tracking-[0.2em]">{t.totalWorkouts}</p>
@@ -503,7 +501,6 @@ export default function ClientDashboardPage() {
             </MagicCard>
 
             <MagicCard className="relative overflow-hidden border border-border bg-background-surface/80 shadow-lg p-6">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-accent to-primary" />
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-secondary text-xs uppercase tracking-[0.2em]">{t.unreadMessages}</p>

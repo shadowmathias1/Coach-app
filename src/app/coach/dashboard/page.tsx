@@ -212,7 +212,7 @@ export default function CoachDashboardPage() {
       goal.performance_metric === 'weekly_volume'
         ? 'Volume'
         : 'Max';
-    return `${t.goalPerformance} ${metricLabel}${exerciseName ? ` · ${exerciseName}` : ''}`;
+    return `${t.goalPerformance} ${metricLabel}${exerciseName ? ` - ${exerciseName}` : ''}`;
   };
 
   const formatCurrentValue = (goal: GoalProgress) => {
@@ -458,7 +458,6 @@ export default function CoachDashboardPage() {
               transition={{ duration: 0.3 }}
             >
               <MagicCard className="p-6 relative overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 bg-background-surface/80">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
                 <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="relative flex items-center justify-between">
                   <div>
@@ -481,7 +480,6 @@ export default function CoachDashboardPage() {
               transition={{ duration: 0.3, delay: 0.1 }}
             >
               <MagicCard className="p-6 relative overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 bg-background-surface/80">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-success to-accent" />
                 <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gradient-to-br from-success/20 to-accent/20 blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="relative flex items-center justify-between">
                   <div>
@@ -504,7 +502,6 @@ export default function CoachDashboardPage() {
               transition={{ duration: 0.3, delay: 0.2 }}
             >
               <MagicCard className="p-6 relative overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 bg-background-surface/80">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-secondary to-primary" />
                 <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gradient-to-br from-secondary/20 to-primary/20 blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="relative">
                   <p className="text-text-secondary text-xs font-semibold uppercase tracking-[0.2em] mb-3">{t.inviteCode}</p>

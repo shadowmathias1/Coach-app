@@ -48,25 +48,15 @@ interface WeightPoint {
   weight: number;
 }
 
-interface ExercisePerfRow {
-  exercise_id: string | null;
-  exercise_name: string;
-  date: string;
-  max_weight: number | null;
-  max_estimated_1rm: number | null;
-}
-
 interface ExerciseOption {
   id: string;
   name: string;
 }
 
-interface ComparisonPoint {
+interface ExerciseHistoryPoint {
   date: string;
-  exercise_id: string;
-  exercise_name: string;
-  metric: string;
-  value: number | null;
+  max_weight: number | null;
+  max_reps: number | null;
 }
 
 interface ExercisePrRow {
@@ -122,15 +112,9 @@ export default function ClientProgressPage() {
   const [bmiData, setBmiData] = useState<{ bmi: number | null; bmi_note: string | null } | null>(
     null
   );
-  const [exercisePerf, setExercisePerf] = useState<ExercisePerfRow[]>([]);
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
   const [selectedExerciseId, setSelectedExerciseId] = useState('');
-  const [compareExerciseA, setCompareExerciseA] = useState('');
-  const [compareExerciseB, setCompareExerciseB] = useState('');
-  const [compareMetric, setCompareMetric] = useState<'max_weight' | 'max_estimated_1rm'>(
-    'max_weight'
-  );
-  const [compareSeries, setCompareSeries] = useState<ComparisonPoint[]>([]);
+  const [exerciseHistory, setExerciseHistory] = useState<ExerciseHistoryPoint[]>([]);
   const [calcWeight, setCalcWeight] = useState('');
   const [calcReps, setCalcReps] = useState('');
   const [exercisePrs, setExercisePrs] = useState<ExercisePrRow[]>([]);
@@ -155,11 +139,12 @@ export default function ClientProgressPage() {
         noCheckins: 'Aucun check-in pour le moment.',
         weightTrend: 'Poids dans le temps',
         noWeight: 'Aucune donnee de poids.',
-        performanceTitle: 'Performance par exercice',
+        performanceTitle: 'Evolution par exercice',
         performanceSelect: 'Selectionner un exercice',
         noPerformance: 'Aucune performance pour cet exercice.',
-        compareTitle: 'Comparer deux exercices',
-        compareMetric: 'Metrice',
+        evolutionSubtitle: 'Poids et repetitions au fil du temps',
+        evolutionWeight: 'Charge max',
+        evolutionReps: 'Repetitions max',
         metricWeight: 'Charge max',
         metric1rm: '1RM estime',
         bmiTitle: 'IMC',
@@ -212,11 +197,12 @@ export default function ClientProgressPage() {
         noCheckins: 'No check-ins yet.',
         weightTrend: 'Weight trend',
         noWeight: 'No weight data yet.',
-        performanceTitle: 'Exercise performance',
+        performanceTitle: 'Exercise evolution',
         performanceSelect: 'Select an exercise',
         noPerformance: 'No performance data for this exercise yet.',
-        compareTitle: 'Compare exercises',
-        compareMetric: 'Metric',
+        evolutionSubtitle: 'Weight and reps over time',
+        evolutionWeight: 'Max load',
+        evolutionReps: 'Max reps',
         metricWeight: 'Max load',
         metric1rm: 'Estimated 1RM',
         bmiTitle: 'BMI',
@@ -376,7 +362,6 @@ export default function ClientProgressPage() {
         .order('date', { ascending: true });
       const perfData = (perfRows as ExercisePerfRow[]) || [];
       const filteredPerf = perfData.filter((row) => row.exercise_id);
-      setExercisePerf(filteredPerf);
       const uniqueExercises = Array.from(
         filteredPerf.reduce<Map<string, string>>((acc, row) => {
           if (!row.exercise_id) return acc;
@@ -436,41 +421,14 @@ export default function ClientProgressPage() {
 
   useEffect(() => {
     if (exerciseOptions.length === 0) return;
-    // Forcer l'initialisation si les valeurs sont vides
-    if (!selectedExerciseId) {
-      setSelectedExerciseId(exerciseOptions[0].id);
+    const optionIds = new Set(exerciseOptions.map((option) => option.id));
+    const primary = exerciseOptions[0].id;
+
+    if (!selectedExerciseId || !optionIds.has(selectedExerciseId)) {
+      setSelectedExerciseId(primary);
     }
-    if (!compareExerciseA) {
-      setCompareExerciseA(exerciseOptions[0].id);
-    }
-    if (!compareExerciseB) {
-      setCompareExerciseB(exerciseOptions[1]?.id || exerciseOptions[0].id);
-    }
-  }, [exerciseOptions, selectedExerciseId, compareExerciseA, compareExerciseB]);
+  }, [exerciseOptions, selectedExerciseId]);
 
-  useEffect(() => {
-    const loadComparison = async () => {
-      if (!userId || !compareExerciseA || !compareExerciseB) {
-        setCompareSeries([]);
-        return;
-      }
-
-      const { data, error } = await supabase.rpc('compare_exercises', {
-        in_client_id: userId,
-        in_exercise_ids: [compareExerciseA, compareExerciseB],
-        in_metric: compareMetric,
-      });
-
-      if (error) {
-        console.error('Error loading comparison:', error);
-        setCompareSeries([]);
-        return;
-      }
-      setCompareSeries((data as ComparisonPoint[]) || []);
-    };
-
-    loadComparison();
-  }, [userId, compareExerciseA, compareExerciseB, compareMetric]);
 
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -501,6 +459,77 @@ export default function ClientProgressPage() {
     loadSuggestions();
   }, [selectedExerciseId, unit, userId]);
 
+  useEffect(() => {
+    const loadExerciseHistory = async () => {
+      if (!userId || !selectedExerciseId) {
+        setExerciseHistory([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('workout_entries')
+        .select('sets_json, workout_logs!inner(date)')
+        .eq('exercise_id', selectedExerciseId)
+        .eq('workout_logs.client_id', userId)
+        .order('workout_logs.date', { ascending: true });
+
+      if (error) {
+        console.error('Error loading exercise history:', error);
+        setExerciseHistory([]);
+        return;
+      }
+
+      const dailyMap = new Map<string, { max_weight: number | null; max_reps: number | null }>();
+      (data || []).forEach((row) => {
+        const date = (row as { workout_logs?: { date?: string } }).workout_logs?.date;
+        if (!date) return;
+        const existing = dailyMap.get(date) || { max_weight: null, max_reps: null };
+        const sets = (row as { sets_json?: unknown }).sets_json;
+        if (Array.isArray(sets)) {
+          sets.forEach((set) => {
+            const repsRaw = (set as { reps?: string | number }).reps;
+            const weightRaw = (set as { weight?: string | number }).weight;
+            const repsValue =
+              typeof repsRaw === 'number'
+                ? repsRaw
+                : typeof repsRaw === 'string'
+                  ? Number.parseInt(repsRaw, 10)
+                  : NaN;
+            const weightValue =
+              typeof weightRaw === 'number'
+                ? weightRaw
+                : typeof weightRaw === 'string'
+                  ? Number.parseFloat(weightRaw.replace(',', '.'))
+                  : NaN;
+
+            if (Number.isFinite(repsValue)) {
+              existing.max_reps =
+                existing.max_reps === null ? repsValue : Math.max(existing.max_reps, repsValue);
+            }
+            if (Number.isFinite(weightValue)) {
+              existing.max_weight =
+                existing.max_weight === null ? weightValue : Math.max(existing.max_weight, weightValue);
+            }
+          });
+        }
+
+        dailyMap.set(date, existing);
+      });
+
+      const history = Array.from(dailyMap.entries())
+        .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+        .map(([date, values]) => ({
+          date: formatWeekLabel(date),
+          max_weight: values.max_weight,
+          max_reps: values.max_reps,
+        }));
+
+      setExerciseHistory(history);
+    };
+
+    loadExerciseHistory();
+  }, [selectedExerciseId, userId]);
+
   const lastCheckin = useMemo(() => checkins[0], [checkins]);
   const weightTrendDisplay = useMemo(() => {
     if (unit === 'imperial') {
@@ -512,64 +541,17 @@ export default function ClientProgressPage() {
     return weightTrend;
   }, [unit, weightTrend]);
 
-  const selectedExerciseSeries = useMemo(() => {
-    if (!selectedExerciseId) return [];
-    const filtered = exercisePerf.filter((row) => row.exercise_id === selectedExerciseId);
-    return filtered.map((row) => {
-      const maxWeight = row.max_weight ?? null;
-      const maxEstimated = row.max_estimated_1rm ?? null;
-      return {
-        date: formatWeekLabel(row.date),
-        max_weight:
-          maxWeight === null
-            ? null
-            : unit === 'imperial'
-              ? Math.round(kgToLb(maxWeight))
-              : Math.round(maxWeight),
-        max_estimated_1rm:
-          maxEstimated === null
-            ? null
-            : unit === 'imperial'
-              ? Math.round(kgToLb(maxEstimated))
-              : Math.round(maxEstimated),
-      };
-    });
-  }, [exercisePerf, selectedExerciseId, unit]);
-
-  const comparisonChart = useMemo(() => {
-    if (!compareExerciseA || !compareExerciseB) {
-      return { data: [], labels: ['', ''] };
-    }
-
-    const exerciseMap = new Map(exerciseOptions.map((opt) => [opt.id, opt.name]));
-    const labelA = exerciseMap.get(compareExerciseA) || 'A';
-    const labelB = exerciseMap.get(compareExerciseB) || 'B';
-    const base = new Map<string, { date: string; seriesA?: number | null; seriesB?: number | null }>();
-
-    compareSeries.forEach((row) => {
-      const key = row.date;
-      const existing = base.get(key) || { date: formatWeekLabel(key) };
-      const value =
-        row.value === null
+  const exerciseHistoryDisplay = useMemo(() => {
+    return exerciseHistory.map((row) => ({
+      ...row,
+      max_weight:
+        row.max_weight === null
           ? null
           : unit === 'imperial'
-            ? Math.round(kgToLb(row.value))
-            : Math.round(row.value);
-
-      if (row.exercise_id === compareExerciseA) {
-        existing.seriesA = value;
-      }
-      if (row.exercise_id === compareExerciseB) {
-        existing.seriesB = value;
-      }
-      base.set(key, existing);
-    });
-
-    return {
-      data: Array.from(base.values()),
-      labels: [labelA, labelB],
-    };
-  }, [compareExerciseA, compareExerciseB, compareSeries, exerciseOptions, unit]);
+            ? Math.round(kgToLb(row.max_weight))
+            : Math.round(row.max_weight),
+    }));
+  }, [exerciseHistory, unit]);
 
   const calculator = useMemo(() => {
     const weightValue = Number(calcWeight);
@@ -760,9 +742,9 @@ export default function ClientProgressPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={workoutTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                      <XAxis dataKey="week" stroke="#a1a1aa" />
-                      <YAxis stroke="#a1a1aa" allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                      <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                      <YAxis stroke="rgb(var(--color-text-secondary))" allowDecimals={false} />
                       <Tooltip />
                       <Bar dataKey="count" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                     </BarChart>
@@ -779,9 +761,9 @@ export default function ClientProgressPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={checkinTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                      <XAxis dataKey="week" stroke="#a1a1aa" />
-                      <YAxis stroke="#a1a1aa" allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                      <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                      <YAxis stroke="rgb(var(--color-text-secondary))" allowDecimals={false} />
                       <Tooltip />
                       <Line
                         type="monotone"
@@ -808,9 +790,9 @@ export default function ClientProgressPage() {
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={weightTrendDisplay}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                    <XAxis dataKey="week" stroke="#a1a1aa" />
-                    <YAxis stroke="#a1a1aa" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                    <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                    <YAxis stroke="rgb(var(--color-text-secondary))" />
                     <Tooltip />
                     <Line
                       type="monotone"
@@ -827,132 +809,69 @@ export default function ClientProgressPage() {
             )}
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="">
-              <h3 className="text-lg font-semibold mb-4">{t.performanceTitle}</h3>
-              {exerciseOptions.length > 0 ? (
-                <>
-                  <select
-                    className="input mb-4"
-                    value={selectedExerciseId}
-                    onChange={(event) => setSelectedExerciseId(event.target.value)}
-                  >
-                    {exerciseOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedExerciseSeries.length > 0 ? (
-                    <div className="h-56">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={selectedExerciseSeries}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                          <XAxis dataKey="date" stroke="#a1a1aa" />
-                          <YAxis stroke="#a1a1aa" />
-                          <Tooltip />
-                          <Line
-                            type="monotone"
-                            dataKey="max_weight"
-                            stroke="#3b82f6"
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                            name={t.metricWeight}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="max_estimated_1rm"
-                            stroke="#f59e0b"
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                            name={t.metric1rm}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
-              )}
-            </Card>
-
-            <Card className="">
-              <h3 className="text-lg font-semibold mb-4">{t.compareTitle}</h3>
-              {exerciseOptions.length > 1 ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                    <select
-                      className="input"
-                      value={compareExerciseA}
-                      onChange={(event) => setCompareExerciseA(event.target.value)}
-                    >
-                      {exerciseOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="input"
-                      value={compareExerciseB}
-                      onChange={(event) => setCompareExerciseB(event.target.value)}
-                    >
-                      {exerciseOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="input"
-                      value={compareMetric}
-                      onChange={(event) =>
-                        setCompareMetric(event.target.value as 'max_weight' | 'max_estimated_1rm')
-                      }
-                    >
-                      <option value="max_weight">{t.metricWeight}</option>
-                      <option value="max_estimated_1rm">{t.metric1rm}</option>
-                    </select>
+          <Card className="">
+            <div className="flex flex-col gap-2 mb-4">
+              <h3 className="text-lg font-semibold">{t.performanceTitle}</h3>
+              <p className="text-sm text-text-tertiary">{t.evolutionSubtitle}</p>
+            </div>
+            {exerciseOptions.length > 0 ? (
+              <>
+                <select
+                  className="input mb-4"
+                  value={selectedExerciseId}
+                  onChange={(event) => setSelectedExerciseId(event.target.value)}
+                >
+                  {exerciseOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+                {exerciseHistoryDisplay.length > 0 ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={exerciseHistoryDisplay}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                        <XAxis dataKey="date" stroke="rgb(var(--color-text-secondary))" />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="rgb(var(--color-text-secondary))"
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="rgb(var(--color-text-secondary))"
+                        />
+                        <Tooltip />
+                        <Line
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="max_weight"
+                          stroke="rgb(var(--color-primary))"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name={t.evolutionWeight}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="max_reps"
+                          stroke="rgb(var(--color-accent))"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name={t.evolutionReps}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
-                  {comparisonChart.data.length > 0 ? (
-                    <div className="h-56">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={comparisonChart.data}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                          <XAxis dataKey="date" stroke="#a1a1aa" />
-                          <YAxis stroke="#a1a1aa" />
-                          <Tooltip />
-                          <Line
-                            type="monotone"
-                            dataKey="seriesA"
-                            stroke="#22c55e"
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                            name={comparisonChart.labels[0]}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="seriesB"
-                            stroke="#6366f1"
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                            name={comparisonChart.labels[1]}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
-              )}
-            </Card>
-          </div>
+                ) : (
+                  <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
+            )}
+          </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="">
@@ -962,9 +881,9 @@ export default function ClientProgressPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={weeklyVolumeChart}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                      <XAxis dataKey="week" stroke="#a1a1aa" />
-                      <YAxis stroke="#a1a1aa" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                      <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                      <YAxis stroke="rgb(var(--color-text-secondary))" />
                       <Tooltip />
                       <Bar
                         dataKey="current_volume"
@@ -1005,9 +924,9 @@ export default function ClientProgressPage() {
                     <div className="h-56">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={muscleTonnageChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                          <XAxis dataKey="week" stroke="#a1a1aa" />
-                          <YAxis stroke="#a1a1aa" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                          <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                          <YAxis stroke="rgb(var(--color-text-secondary))" />
                           <Tooltip />
                           <Line
                             type="monotone"
@@ -1037,9 +956,9 @@ export default function ClientProgressPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={intensityChart}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                      <XAxis dataKey="week" stroke="#a1a1aa" />
-                      <YAxis stroke="#a1a1aa" allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.35)" />
+                      <XAxis dataKey="week" stroke="rgb(var(--color-text-secondary))" />
+                      <YAxis stroke="rgb(var(--color-text-secondary))" allowDecimals={false} />
                       <Tooltip />
                       <Bar dataKey="force" stackId="a" fill="#2563eb" name={t.goalForce} />
                       <Bar dataKey="hypertrophie" stackId="a" fill="#f97316" name={t.goalHypertrophy} />
@@ -1206,3 +1125,4 @@ export default function ClientProgressPage() {
     </ClientLayout>
   );
 }
+
