@@ -762,7 +762,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-l-4 border-l-primary/40">
+            <Card className="">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Profil</h3>
@@ -796,7 +796,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
               )}
             </Card>
 
-            <Card className="border-l-4 border-l-secondary/40">
+            <Card className="">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Securite</h3>
@@ -837,7 +837,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-l-4 border-l-secondary/40">
+            <Card className="">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Modifier le profil</h3>
@@ -1039,7 +1039,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
             </Card>
 
             {role === 'coach' ? (
-              <Card className="border-l-4 border-l-primary/40">
+              <Card className="">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold">Code d&apos;invitation</h3>
@@ -1064,7 +1064,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
                 </div>
               </Card>
             ) : (
-              <Card className="border-l-4 border-l-primary/40">
+              <Card className="">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold">Changer de coach</h3>
@@ -1100,7 +1100,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {role === 'coach' && (
-              <Card className="border-l-4 border-l-warning/40">
+              <Card className="">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold">Notifications</h3>
@@ -1181,7 +1181,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
             )}
 
             {role === 'coach' && (
-              <Card className="border-l-4 border-l-primary/40">
+              <Card className="">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-semibold">Branding</h3>
@@ -1276,7 +1276,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
               </Card>
             )}
 
-            <Card className="border-l-4 border-l-danger/40">
+            <Card className="">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Supprimer le compte</h3>
@@ -1319,7 +1319,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
             </div>
           </div>
 
-          <Card className="border-l-4 border-l-success/40">
+          <Card className="">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold">{t.themeTitle}</h3>
@@ -1380,7 +1380,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
               })}
             </div>
           </Card>
-          <Card className="border-l-4 border-l-primary/40">
+          <Card className="">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold">{t.languageTitle}</h3>
@@ -1407,7 +1407,7 @@ export default function SettingsContent({ role }: SettingsContentProps) {
               </Button>
             </div>
           </Card>
-          <Card className="border-l-4 border-l-secondary/40">
+          <Card className="">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold">{t.unitsTitle}</h3>

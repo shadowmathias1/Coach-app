@@ -429,7 +429,7 @@ export default function ClientDashboardPage() {
             </motion.div>
           </div>
 
-          <MagicCard className="mb-8 border-l-4 border-l-accent/30 p-6">
+          <MagicCard className="mb-8  p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-accent" />
@@ -520,7 +520,7 @@ export default function ClientDashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-            <MagicCard className="border-l-4 border-l-primary/30 p-6">
+            <MagicCard className=" p-6">
               <h3 className="text-lg font-semibold mb-4">{t.weightTrend}</h3>
               {weightTrendDisplay.length > 0 ? (
                 <div className="h-56">
@@ -559,7 +559,7 @@ export default function ClientDashboardPage() {
               )}
             </MagicCard>
 
-            <MagicCard className="border-l-4 border-l-secondary/30 p-6">
+            <MagicCard className=" p-6">
               <h3 className="text-lg font-semibold mb-4">{t.workoutsPerWeek}</h3>
               {workoutTrend.length > 0 ? (
                 <div className="h-56">
@@ -593,7 +593,7 @@ export default function ClientDashboardPage() {
           </div>
 
           {clientData?.goal && (
-            <MagicCard className="mt-6 border-l-4 border-l-primary/30 p-6">
+            <MagicCard className="mt-6  p-6">
               <h3 className="text-lg font-semibold mb-2">{t.yourGoal}</h3>
               <p className="text-text-secondary">{clientData.goal}</p>
               {coachName && (

@@ -848,7 +848,7 @@ export default function ClientDetailPage() {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-text-secondary text-sm">{t.totalWorkouts}</p>
@@ -860,7 +860,7 @@ export default function ClientDetailPage() {
                   </div>
                 </Card>
 
-                <Card className="border-l-4 border-l-success/30">
+                <Card className="">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-text-secondary text-sm">{t.totalCheckins}</p>
@@ -872,7 +872,7 @@ export default function ClientDetailPage() {
                   </div>
                 </Card>
 
-                <Card className="border-l-4 border-l-secondary/30">
+                <Card className="">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-text-secondary text-sm">{t.lastActivity}</p>
@@ -888,7 +888,7 @@ export default function ClientDetailPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-4">{t.workoutsPerWeek}</h3>
                   {workoutTrend.length > 0 ? (
                     <div className="h-56">
@@ -907,7 +907,7 @@ export default function ClientDetailPage() {
                   )}
                 </Card>
 
-                <Card className="border-l-4 border-l-success/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-4">{t.checkinsPerWeek}</h3>
                   {checkinTrend.length > 0 ? (
                     <div className="h-56">
@@ -933,7 +933,7 @@ export default function ClientDetailPage() {
                 </Card>
               </div>
 
-              <Card className="border-l-4 border-l-secondary/30">
+              <Card className="">
                 <div className="flex items-center gap-2 mb-4">
                   <Scale className="w-5 h-5 text-secondary" />
                   <h3 className="text-lg font-semibold">{t.weightTrend}</h3>
@@ -962,7 +962,7 @@ export default function ClientDetailPage() {
               </Card>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-4">{t.performanceTitle}</h3>
                   {exerciseOptions.length > 0 ? (
                     <>
@@ -1013,7 +1013,7 @@ export default function ClientDetailPage() {
                   )}
                 </Card>
 
-                <Card className="border-l-4 border-l-accent/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-4">{t.compareTitle}</h3>
                   {exerciseOptions.length > 1 ? (
                     <>
@@ -1089,7 +1089,7 @@ export default function ClientDetailPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-2">{t.weeklyVolumeTitle}</h3>
                   <p className="text-sm text-text-tertiary mb-4">{t.weeklyVolumeSubtitle}</p>
                   {weeklyVolumeChart.length > 0 ? (
@@ -1120,7 +1120,7 @@ export default function ClientDetailPage() {
                   )}
                 </Card>
 
-                <Card className="border-l-4 border-l-success/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-2">{t.tonnageTitle}</h3>
                   {muscleOptions.length > 0 ? (
                     <>
@@ -1164,7 +1164,7 @@ export default function ClientDetailPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-l-4 border-l-secondary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-2">{t.intensityTitle}</h3>
                   <p className="text-sm text-text-tertiary mb-4">{t.intensitySubtitle}</p>
                   {intensityChart.length > 0 ? (
@@ -1187,7 +1187,7 @@ export default function ClientDetailPage() {
                   )}
                 </Card>
 
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-2">{t.prTitle}</h3>
                   {exercisePrs.length > 0 ? (
                     <div className="space-y-3">
@@ -1220,7 +1220,7 @@ export default function ClientDetailPage() {
                 </Card>
               </div>
 
-              <Card className="border-l-4 border-l-accent/30">
+              <Card className="">
                 <h3 className="text-lg font-semibold mb-4">{t.suggestionTitle}</h3>
                 {selectedExerciseId ? (
                   formattedSuggestions.length > 0 ? (
@@ -1272,7 +1272,7 @@ export default function ClientDetailPage() {
               </Card>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-l-4 border-l-secondary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold mb-2">{t.bmiTitle}</h3>
                   <p className="text-sm text-text-tertiary mb-4">{t.bmiLabel}</p>
                   {bmiData && bmiData.bmi !== null ? (
@@ -1287,7 +1287,7 @@ export default function ClientDetailPage() {
                   )}
                 </Card>
 
-                <Card className="border-l-4 border-l-primary/30">
+                <Card className="">
                   <h3 className="text-lg font-semibold">{t.calculatorTitle}</h3>
                   <p className="text-sm text-text-tertiary mb-4">{t.calculatorSubtitle}</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1336,7 +1336,7 @@ export default function ClientDetailPage() {
                 </Card>
               </div>
 
-              <Card className="border-l-4 border-l-primary/30">
+              <Card className="">
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <User className="w-5 h-5 text-primary" />
                   {t.profileInfo}
@@ -1383,7 +1383,7 @@ export default function ClientDetailPage() {
                 workouts.map((workout) => (
                   <Card
                     key={workout.id}
-                    className="group cursor-pointer relative overflow-hidden border-l-4 border-l-primary/30 hover:border-l-primary transition-all duration-300"
+                    className="group cursor-pointer relative overflow-hidden   transition-all duration-300"
                     onClick={() =>
                       router.push(`/coach/clients/${clientId}/workouts/${workout.id}`)
                     }
@@ -1432,7 +1432,7 @@ export default function ClientDetailPage() {
                 checkins.map((checkin) => (
                   <Card
                     key={checkin.id}
-                    className="group cursor-pointer relative overflow-hidden border-l-4 border-l-success/30 hover:border-l-success transition-all duration-300"
+                    className="group cursor-pointer relative overflow-hidden   transition-all duration-300"
                   >
                     <div className="absolute inset-0 bg-gradient-success opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
                     <div className="relative z-10">

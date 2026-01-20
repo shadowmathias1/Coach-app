@@ -145,7 +145,7 @@ export default function CheckinPage() {
     icon: any;
     color: string;
   }) => (
-    <Card className="border-l-4" style={{ borderLeftColor: color }}>
+    <Card className="" style={{ borderLeftColor: color }}>
       <div className="flex items-center gap-3 mb-4">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center"
@@ -206,7 +206,7 @@ export default function CheckinPage() {
         </header>
 
         <main className="max-w-4xl mx-auto px-6 py-8">
-          <Card className="mb-6 border-l-4 border-l-primary/30">
+          <Card className="mb-6 ">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Scale className="w-5 h-5 text-primary" />
@@ -262,7 +262,7 @@ export default function CheckinPage() {
             />
           </div>
 
-          <Card className="mb-6 border-l-4 border-l-success/30">
+          <Card className="mb-6 ">
             <label className="text-sm text-text-secondary mb-2 block">
               {t.notes}
             </label>

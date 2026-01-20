@@ -254,7 +254,7 @@ export default function ClientProgramPage() {
         <main className="max-w-4xl mx-auto px-6 py-8">
           {program ? (
             <div className="space-y-6">
-              <Card className="border-l-4 border-l-primary/30">
+              <Card className="">
                 <h2 className="text-2xl font-bold mb-2">{program.title}</h2>
                 {program.description && (
                   <p className="text-text-secondary mb-4">{program.description}</p>
@@ -275,7 +275,7 @@ export default function ClientProgramPage() {
                 </div>
               </Card>
 
-              <Card className="border-l-4 border-l-accent/30">
+              <Card className="">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">{t.todayFocus}</h3>
@@ -314,7 +314,7 @@ export default function ClientProgramPage() {
                 </Card>
               ) : (
                 <div className="space-y-6">
-                  <Card className="border-l-4 border-l-secondary/30">
+                  <Card className="">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <h3 className="text-lg font-semibold">{t.weeklyPlan}</h3>
@@ -386,10 +386,10 @@ export default function ClientProgramPage() {
                         return (
                           <Card
                             key={day.id}
-                            className={`border-l-4 ${
+                            className={` ${
                               isToday
-                                ? 'border-l-success/60 bg-success/5'
-                                : 'border-l-secondary/30'
+                                ? 'bg-success/5'
+                                : ''
                             }`}
                           >
                             <div className="flex items-start justify-between mb-3">

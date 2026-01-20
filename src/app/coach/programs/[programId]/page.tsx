@@ -500,7 +500,7 @@ export default function CoachProgramDetailPage() {
     return (
       <CoachLayout>
         <div className="min-h-screen bg-background flex items-center justify-center px-6">
-          <Card className="max-w-xl w-full border-l-4 border-l-danger/40">
+          <Card className="max-w-xl w-full ">
             <h2 className="text-xl font-semibold mb-2">{t.loadFail}</h2>
             <p className="text-text-secondary text-sm mb-4">{loadError}</p>
             <div className="flex gap-3">
@@ -564,7 +564,7 @@ export default function CoachProgramDetailPage() {
         </header>
 
         <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-          <Card className="border-l-4 border-l-accent/30">
+          <Card className="">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{t.overviewTitle}</h2>
@@ -591,7 +591,7 @@ export default function CoachProgramDetailPage() {
           </Card>
 
           {!previewMode && (
-            <Card className="border-l-4 border-l-primary/30">
+            <Card className="">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -638,7 +638,7 @@ export default function CoachProgramDetailPage() {
             </Card>
           )}
 
-          <Card className="border-l-4 border-l-secondary/30">
+          <Card className="">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-xl font-semibold">{t.scheduleTitle}</h2>

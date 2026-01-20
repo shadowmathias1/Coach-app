@@ -169,7 +169,7 @@ export default function ClientsPage() {
               {filteredClients.map((client) => (
                 <Card
                   key={client.id}
-                  className="group cursor-pointer relative overflow-hidden border-l-4 border-l-primary/30 hover:border-l-primary transition-all duration-300"
+                  className="group cursor-pointer relative overflow-hidden   transition-all duration-300"
                   onClick={() => router.push(`/coach/clients/${client.id}`)}
                 >
                   <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300" />

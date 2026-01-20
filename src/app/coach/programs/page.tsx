@@ -188,7 +188,7 @@ export default function ProgramsPage() {
               {programs.map((program) => (
                 <Card
                   key={program.id}
-                  className="group cursor-pointer relative overflow-hidden border-l-4 border-l-primary/30 hover:border-l-primary transition-all duration-300"
+                  className="group cursor-pointer relative overflow-hidden   transition-all duration-300"
                 >
                   <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
                   <div className="relative z-10">

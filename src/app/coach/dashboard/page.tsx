@@ -530,7 +530,7 @@ export default function CoachDashboardPage() {
             </motion.div>
           </div>
 
-          <MagicCard className="mb-8 border-l-4 border-l-accent/30 p-6">
+          <MagicCard className="mb-8  p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{t.quickActions}</h2>
@@ -564,7 +564,7 @@ export default function CoachDashboardPage() {
             </div>
           </MagicCard>
 
-          <MagicCard className="mb-8 border-l-4 border-l-secondary/30 p-6">
+          <MagicCard className="mb-8  p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-secondary" />
@@ -606,7 +606,7 @@ export default function CoachDashboardPage() {
             </div>
           </MagicCard>
 
-          <MagicCard className="mb-8 border-l-4 border-l-primary/30 p-6">
+          <MagicCard className="mb-8  p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Target className="w-5 h-5 text-primary" />

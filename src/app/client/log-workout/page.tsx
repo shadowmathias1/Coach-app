@@ -222,7 +222,7 @@ export default function LogWorkoutPage() {
         </header>
 
         <main className="max-w-4xl mx-auto px-6 py-8">
-          <Card className="mb-6 border-l-4 border-l-primary/30">
+          <Card className="mb-6 ">
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm text-text-secondary mb-2 block">
@@ -244,7 +244,7 @@ export default function LogWorkoutPage() {
             {exercises.map((exercise) => (
               <Card
                 key={exercise.id}
-                className="group relative overflow-hidden border-l-4 border-l-primary/30 hover:border-l-primary transition-all duration-300"
+                className="group relative overflow-hidden   transition-all duration-300"
               >
                 <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
 
@@ -366,7 +366,7 @@ export default function LogWorkoutPage() {
             {t.addExercise}
           </Button>
 
-          <Card className="mb-6 border-l-4 border-l-success/30">
+          <Card className="mb-6 ">
             <label className="text-sm text-text-secondary mb-2 block">
               {t.notesLabel}
             </label>
