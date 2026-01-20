@@ -110,17 +110,6 @@ interface WeeklyGoalSetsRow {
   set_count: number;
 }
 
-interface SuggestionRow {
-  goal: string;
-  rep_range: string;
-  min_weight: number | null;
-  max_weight: number | null;
-  suggested_weight: number | null;
-  last_session_date: string | null;
-  last_best_weight: number | null;
-  last_best_1rm: number | null;
-}
-
 export default function ClientDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -136,9 +125,6 @@ export default function ClientDetailPage() {
   const [workoutTrend, setWorkoutTrend] = useState<TrendPoint[]>([]);
   const [checkinTrend, setCheckinTrend] = useState<TrendPoint[]>([]);
   const [weightTrend, setWeightTrend] = useState<WeightPoint[]>([]);
-  const [bmiData, setBmiData] = useState<{ bmi: number | null; bmi_note: string | null } | null>(
-    null
-  );
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
   const [selectedExerciseId, setSelectedExerciseId] = useState('');
   const [exerciseHistory, setExerciseHistory] = useState<ExerciseHistoryPoint[]>([]);
@@ -150,7 +136,6 @@ export default function ClientDetailPage() {
   const [weeklyGoalSets, setWeeklyGoalSets] = useState<WeeklyGoalSetsRow[]>([]);
   const [muscleOptions, setMuscleOptions] = useState<string[]>([]);
   const [selectedMuscle, setSelectedMuscle] = useState('');
-  const [suggestions, setSuggestions] = useState<SuggestionRow[]>([]);
 
   const t = language === 'fr'
     ? {
@@ -195,11 +180,6 @@ export default function ClientDetailPage() {
         evolutionReps: 'Repetitions max',
         metricWeight: 'Charge max',
         metric1rm: '1RM estime',
-        bmiTitle: 'IMC',
-        bmiLabel: 'Indice de masse corporelle',
-        bmiNote:
-          "IMC indicatif: la masse musculaire peut faire apparaitre une personne comme en surpoids.",
-        noBmi: 'IMC indisponible',
         calculatorTitle: 'Calculateur 1RM',
         calculatorSubtitle: "Estime le 1RM et les zones d'entrainement",
         weightLabel: 'Charge',
@@ -222,15 +202,6 @@ export default function ClientDetailPage() {
         intensityTitle: 'Series par objectif',
         intensitySubtitle: 'Repartition force/hypertrophie/endurance',
         intensityEmpty: 'Pas de donnees de series.',
-        suggestionTitle: 'Suggestion de charge',
-        suggestionEmpty: 'Selectionne un exercice pour voir les suggestions.',
-        suggestionGoal: 'Objectif',
-        suggestionRange: 'Reps',
-        suggestionMin: 'Min',
-        suggestionMax: 'Max',
-        suggestionSuggested: 'Suggere',
-        lastBest: 'Dernier best',
-        lastSession: 'Derniere seance',
         loadFail: 'Impossible de charger le client',
       }
     : {
@@ -275,11 +246,6 @@ export default function ClientDetailPage() {
         evolutionReps: 'Max reps',
         metricWeight: 'Max load',
         metric1rm: 'Estimated 1RM',
-        bmiTitle: 'BMI',
-        bmiLabel: 'Body mass index',
-        bmiNote:
-          'BMI is indicative: muscular people may appear overweight.',
-        noBmi: 'BMI unavailable',
         calculatorTitle: '1RM calculator',
         calculatorSubtitle: 'Estimate 1RM and training zones',
         weightLabel: 'Load',
@@ -302,15 +268,6 @@ export default function ClientDetailPage() {
         intensityTitle: 'Sets by goal',
         intensitySubtitle: 'Strength/hypertrophy/endurance split',
         intensityEmpty: 'No sets data yet.',
-        suggestionTitle: 'Load suggestions',
-        suggestionEmpty: 'Select an exercise to see suggestions.',
-        suggestionGoal: 'Goal',
-        suggestionRange: 'Reps',
-        suggestionMin: 'Min',
-        suggestionMax: 'Max',
-        suggestionSuggested: 'Suggested',
-        lastBest: 'Last best',
-        lastSession: 'Last session',
         loadFail: 'Failed to load client data',
       };
 
@@ -428,13 +385,6 @@ export default function ClientDetailPage() {
           }))
       );
 
-      const { data: bmiRow } = await supabase
-        .from('client_bmi')
-        .select('bmi, bmi_note')
-        .eq('client_id', clientId)
-        .maybeSingle();
-      setBmiData((bmiRow as { bmi: number | null; bmi_note: string | null }) || null);
-
       const { data: perfRows } = await supabase
         .from('exercise_perf_daily_secure')
         .select('exercise_id, exercise_name, date, max_weight, max_estimated_1rm')
@@ -510,35 +460,6 @@ export default function ClientDetailPage() {
       setSelectedExerciseId(primary);
     }
   }, [exerciseOptions, selectedExerciseId]);
-
-  useEffect(() => {
-    const loadSuggestions = async () => {
-      if (!selectedExerciseId) {
-        setSuggestions([]);
-        return;
-      }
-
-      const increment =
-        unit === 'imperial'
-          ? Math.round(toMetricWeight(5, unit) * 100) / 100
-          : 2.5;
-
-      const { data, error } = await supabase.rpc('suggest_exercise_loads', {
-        in_client_id: clientId,
-        in_exercise_id: selectedExerciseId,
-        in_increment: increment,
-      });
-
-      if (error) {
-        console.error('Error loading suggestions:', error);
-        setSuggestions([]);
-        return;
-      }
-      setSuggestions((data as SuggestionRow[]) || []);
-    };
-
-    loadSuggestions();
-  }, [clientId, selectedExerciseId, unit]);
 
   useEffect(() => {
     const loadExerciseHistory = async () => {
@@ -717,42 +638,6 @@ export default function ClientDetailPage() {
 
     return Array.from(base.values());
   }, [weeklyGoalSets]);
-
-  const formattedSuggestions = useMemo(() => {
-    return suggestions.map((row) => ({
-      ...row,
-      min_weight:
-        row.min_weight === null
-          ? null
-          : unit === 'imperial'
-            ? Math.round(kgToLb(row.min_weight))
-            : Math.round(row.min_weight),
-      max_weight:
-        row.max_weight === null
-          ? null
-          : unit === 'imperial'
-            ? Math.round(kgToLb(row.max_weight))
-            : Math.round(row.max_weight),
-      suggested_weight:
-        row.suggested_weight === null
-          ? null
-          : unit === 'imperial'
-            ? Math.round(kgToLb(row.suggested_weight))
-            : Math.round(row.suggested_weight),
-      last_best_weight:
-        row.last_best_weight === null
-          ? null
-          : unit === 'imperial'
-            ? Math.round(kgToLb(row.last_best_weight))
-            : Math.round(row.last_best_weight),
-      last_best_1rm:
-        row.last_best_1rm === null
-          ? null
-          : unit === 'imperial'
-            ? Math.round(kgToLb(row.last_best_1rm))
-            : Math.round(row.last_best_1rm),
-    }));
-  }, [suggestions, unit]);
 
   if (loading) {
     return (
@@ -1142,120 +1027,52 @@ export default function ClientDetailPage() {
               </div>
 
               <Card className="">
-                <h3 className="text-lg font-semibold mb-4">{t.suggestionTitle}</h3>
-                {selectedExerciseId ? (
-                  formattedSuggestions.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {formattedSuggestions.map((row) => (
+                <h3 className="text-lg font-semibold">{t.calculatorTitle}</h3>
+                <p className="text-sm text-text-tertiary mb-4">{t.calculatorSubtitle}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label={`${t.weightLabel} (${weightInputLabel(unit)})`}
+                    type="number"
+                    value={calcWeight}
+                    onChange={(event) => setCalcWeight(event.target.value)}
+                    placeholder={unit === 'imperial' ? '185' : '80'}
+                  />
+                  <Input
+                    label={t.repsLabel}
+                    type="number"
+                    value={calcReps}
+                    onChange={(event) => setCalcReps(event.target.value)}
+                    placeholder="5"
+                  />
+                </div>
+                {calculator.estimate ? (
+                  <div className="mt-4 space-y-3 text-sm">
+                    <p className="font-semibold">
+                      {t.estimateLabel}: {calculator.estimate} {weightInputLabel(unit)}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {calculator.ranges.map((range) => (
                         <div
-                          key={row.goal}
-                          className="rounded-lg border border-border bg-background-elevated/60 p-4"
+                          key={range.goal}
+                          className="rounded-lg border border-border bg-background-elevated/60 px-3 py-2"
                         >
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold">{row.goal}</p>
-                            <span className="text-xs text-text-tertiary">
-                              {row.rep_range} reps
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-sm mt-3">
-                            <p>
-                              {t.suggestionMin}:{' '}
-                              {row.min_weight ?? '-'} {weightInputLabel(unit)}
-                            </p>
-                            <p>
-                              {t.suggestionMax}:{' '}
-                              {row.max_weight ?? '-'} {weightInputLabel(unit)}
-                            </p>
-                            <p>
-                              {t.suggestionSuggested}:{' '}
-                              {row.suggested_weight ?? '-'} {weightInputLabel(unit)}
-                            </p>
-                            <p>
-                              {t.lastBest}:{' '}
-                              {row.last_best_weight ?? '-'} {weightInputLabel(unit)}
-                            </p>
-                          </div>
-                          {row.last_session_date && (
-                            <p className="text-xs text-text-tertiary mt-2">
-                              {t.lastSession}:{' '}
-                              {new Date(row.last_session_date).toLocaleDateString(locale)}
-                            </p>
-                          )}
+                          <p className="font-semibold">{range.goal}</p>
+                          <p className="text-xs text-text-tertiary">
+                            {range.repRange} reps
+                          </p>
+                          <p className="text-sm mt-1">
+                            {range.min}-{range.max} {weightInputLabel(unit)}
+                          </p>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-text-tertiary">{t.noPerformance}</p>
-                  )
+                  </div>
                 ) : (
-                  <p className="text-sm text-text-tertiary">{t.suggestionEmpty}</p>
+                  <p className="text-sm text-text-tertiary mt-3">
+                    {t.calculatorHint}
+                  </p>
                 )}
               </Card>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="">
-                  <h3 className="text-lg font-semibold mb-2">{t.bmiTitle}</h3>
-                  <p className="text-sm text-text-tertiary mb-4">{t.bmiLabel}</p>
-                  {bmiData && bmiData.bmi !== null ? (
-                    <div className="space-y-2">
-                      <p className="text-3xl font-bold text-gradient">
-                        {Number(bmiData.bmi).toFixed(1)}
-                      </p>
-                      <p className="text-sm text-text-tertiary">{t.bmiNote}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-text-tertiary">{t.noBmi}</p>
-                  )}
-                </Card>
-
-                <Card className="">
-                  <h3 className="text-lg font-semibold">{t.calculatorTitle}</h3>
-                  <p className="text-sm text-text-tertiary mb-4">{t.calculatorSubtitle}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label={`${t.weightLabel} (${weightInputLabel(unit)})`}
-                      type="number"
-                      value={calcWeight}
-                      onChange={(event) => setCalcWeight(event.target.value)}
-                      placeholder={unit === 'imperial' ? '185' : '80'}
-                    />
-                    <Input
-                      label={t.repsLabel}
-                      type="number"
-                      value={calcReps}
-                      onChange={(event) => setCalcReps(event.target.value)}
-                      placeholder="5"
-                    />
-                  </div>
-                  {calculator.estimate ? (
-                    <div className="mt-4 space-y-3 text-sm">
-                      <p className="font-semibold">
-                        {t.estimateLabel}: {calculator.estimate} {weightInputLabel(unit)}
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {calculator.ranges.map((range) => (
-                          <div
-                            key={range.goal}
-                            className="rounded-lg border border-border bg-background-elevated/60 px-3 py-2"
-                          >
-                            <p className="font-semibold">{range.goal}</p>
-                            <p className="text-xs text-text-tertiary">
-                              {range.repRange} reps
-                            </p>
-                            <p className="text-sm mt-1">
-                              {range.min}-{range.max} {weightInputLabel(unit)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-text-tertiary mt-3">
-                      {t.calculatorHint}
-                    </p>
-                  )}
-                </Card>
-              </div>
 
               <Card className="">
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -1406,4 +1223,3 @@ export default function ClientDetailPage() {
     </CoachLayout>
   );
 }
-
