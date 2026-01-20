@@ -70,6 +70,12 @@ interface ExerciseOption {
   name: string;
 }
 
+interface ExercisePerfRow {
+  exercise_id: string | null;
+  exercise_name: string;
+  date: string;
+}
+
 interface ExerciseHistoryPoint {
   date: string;
   max_weight: number | null;
