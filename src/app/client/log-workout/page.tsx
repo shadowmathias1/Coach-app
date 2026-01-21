@@ -98,7 +98,7 @@ export default function LogWorkoutPage() {
         customExercise: 'Custom exercise',
       };
 
-  // Load exercise library from coach
+  // Load exercise library from multiple sources
   const loadExerciseLibrary = useCallback(async () => {
     try {
       const user = await getCurrentUser();
@@ -113,14 +113,69 @@ export default function LogWorkoutPage() {
 
       if (!clientData) return;
 
-      // Get exercises from coach's library
-      const { data: exercisesData } = await supabase
-        .from('exercises')
-        .select('id, name, muscle_group')
-        .eq('coach_id', clientData.coach_id)
-        .order('name', { ascending: true });
+      const coachId = clientData.coach_id;
 
-      setExerciseLibrary(exercisesData || []);
+      // Get exercises from multiple sources in parallel
+      const [programItemsRes, workoutEntriesRes, exercisesTableRes] = await Promise.all([
+        // 1. From program_items (exercises in programs)
+        supabase
+          .from('program_items')
+          .select('exercise_name, program_days!inner(programs!inner(coach_id))')
+          .eq('program_days.programs.coach_id', coachId),
+        // 2. From past workout entries
+        supabase
+          .from('workout_entries')
+          .select('exercise_name, workout_logs!inner(coach_id)')
+          .eq('workout_logs.coach_id', coachId),
+        // 3. From exercises table (if it exists)
+        supabase
+          .from('exercises')
+          .select('id, name, muscle_group')
+          .eq('coach_id', coachId),
+      ]);
+
+      // Collect unique exercises
+      const exerciseMap = new Map<string, ExerciseOption>();
+
+      // From exercises table
+      (exercisesTableRes.data || []).forEach((ex: { id: string; name: string; muscle_group: string | null }) => {
+        if (ex.name) {
+          exerciseMap.set(ex.name.toLowerCase(), {
+            id: ex.id,
+            name: ex.name,
+            muscle_group: ex.muscle_group,
+          });
+        }
+      });
+
+      // From program items (use name as id if no real id)
+      (programItemsRes.data || []).forEach((item: { exercise_name: string }) => {
+        if (item.exercise_name && !exerciseMap.has(item.exercise_name.toLowerCase())) {
+          exerciseMap.set(item.exercise_name.toLowerCase(), {
+            id: `name:${item.exercise_name}`,
+            name: item.exercise_name,
+            muscle_group: null,
+          });
+        }
+      });
+
+      // From workout entries
+      (workoutEntriesRes.data || []).forEach((entry: { exercise_name: string }) => {
+        if (entry.exercise_name && !exerciseMap.has(entry.exercise_name.toLowerCase())) {
+          exerciseMap.set(entry.exercise_name.toLowerCase(), {
+            id: `name:${entry.exercise_name}`,
+            name: entry.exercise_name,
+            muscle_group: null,
+          });
+        }
+      });
+
+      // Convert to sorted array
+      const allExercises = Array.from(exerciseMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+
+      setExerciseLibrary(allExercises);
     } catch (err) {
       console.error('Error loading exercise library:', err);
     } finally {
@@ -152,10 +207,13 @@ export default function LogWorkoutPage() {
   };
 
   const selectExerciseFromLibrary = (exerciseUiId: string, libraryExercise: ExerciseOption) => {
+    // If the id starts with "name:", it's not a real exercise_id, so set to null
+    const realExerciseId = libraryExercise.id.startsWith('name:') ? null : libraryExercise.id;
+
     setExercises(
       exercises.map((ex) =>
         ex.id === exerciseUiId
-          ? { ...ex, name: libraryExercise.name, exerciseId: libraryExercise.id }
+          ? { ...ex, name: libraryExercise.name, exerciseId: realExerciseId }
           : ex
       )
     );
@@ -164,6 +222,9 @@ export default function LogWorkoutPage() {
   };
 
   const createCustomExercise = async (exerciseUiId: string, name: string) => {
+    const trimmedName = name.trim();
+
+    // Try to create in exercises table, but if it fails, just use the name directly
     try {
       const user = await getCurrentUser();
       if (!user) return;
@@ -176,34 +237,61 @@ export default function LogWorkoutPage() {
 
       if (!clientData) return;
 
-      // Create new exercise in library
+      // Try to create new exercise in library
       const { data: newExercise, error } = await supabase
         .from('exercises')
         .insert({
           coach_id: clientData.coach_id,
-          name: name.trim(),
+          name: trimmedName,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (!error && newExercise) {
+        // Successfully created in exercises table
+        const newEx = newExercise as ExerciseOption;
+        setExerciseLibrary((prev) => [...prev, newEx].sort((a, b) => a.name.localeCompare(b.name)));
+        setExercises(
+          exercises.map((ex) =>
+            ex.id === exerciseUiId
+              ? { ...ex, name: newEx.name, exerciseId: newEx.id }
+              : ex
+          )
+        );
+      } else {
+        // Table doesn't exist or error - just use the name
+        const tempId = `name:${trimmedName}`;
+        setExerciseLibrary((prev) =>
+          [...prev, { id: tempId, name: trimmedName, muscle_group: null }]
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setExercises(
+          exercises.map((ex) =>
+            ex.id === exerciseUiId
+              ? { ...ex, name: trimmedName, exerciseId: null }
+              : ex
+          )
+        );
+      }
 
-      // Update local library
-      setExerciseLibrary((prev) => [...prev, newExercise as ExerciseOption].sort((a, b) => a.name.localeCompare(b.name)));
-
-      // Select the new exercise
+      setShowExercisePicker(null);
+      setSearchQuery('');
+    } catch (err) {
+      // Fallback: just use the name without saving to DB
+      const tempId = `name:${trimmedName}`;
+      setExerciseLibrary((prev) =>
+        [...prev, { id: tempId, name: trimmedName, muscle_group: null }]
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
       setExercises(
         exercises.map((ex) =>
           ex.id === exerciseUiId
-            ? { ...ex, name: (newExercise as ExerciseOption).name, exerciseId: (newExercise as ExerciseOption).id }
+            ? { ...ex, name: trimmedName, exerciseId: null }
             : ex
         )
       );
       setShowExercisePicker(null);
       setSearchQuery('');
-    } catch (err) {
-      console.error('Error creating exercise:', err);
-      toast.error(language === 'fr' ? 'Erreur lors de la creation' : 'Error creating exercise');
     }
   };
 
