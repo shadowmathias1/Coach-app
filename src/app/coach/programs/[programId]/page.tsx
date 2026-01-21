@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Plus, Trash2, Users, Calendar } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users } from 'lucide-react';
 import CoachLayout from '@/components/layout/CoachLayout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -23,20 +23,21 @@ interface Program {
   start_date: string | null;
   end_date: string | null;
   is_active: boolean;
+  is_template: boolean;
 }
 
-interface ProgramDay {
+interface ProgramSession {
   id: string;
   program_id: string;
-  week_number: number;
-  day_number: number;
+  date: string;
   title: string;
+  is_rest_day: boolean;
   notes: string | null;
 }
 
-interface ProgramItem {
+interface SessionItem {
   id: string;
-  program_day_id: string;
+  program_session_id: string;
   exercise_name: string;
   order_index: number;
   target_sets: number | null;
@@ -81,24 +82,20 @@ export default function CoachProgramDetailPage() {
   const [program, setProgram] = useState<Program | null>(null);
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [selectedClientId, setSelectedClientId] = useState('');
-  const [days, setDays] = useState<ProgramDay[]>([]);
-  const [items, setItems] = useState<ProgramItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
-  const [previewMode, setPreviewMode] = useState(false);
-  const [expandedFormByDay, setExpandedFormByDay] = useState<Record<string, boolean>>({});
 
-  const [showAddDay, setShowAddDay] = useState(false);
-  const [newDay, setNewDay] = useState({
-    week_number: 1,
-    day_number: 1,
+  const [activeMonth, setActiveMonth] = useState(() => new Date());
+  const [sessions, setSessions] = useState<ProgramSession[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ProgramSession | null>(null);
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const [sessionSaving, setSessionSaving] = useState(false);
+  const [sessionForm, setSessionForm] = useState({
     title: '',
+    is_rest_day: false,
     notes: '',
   });
-
-  const [newItemsByDay, setNewItemsByDay] = useState<
-    Record<string, NewItemFormState>
-  >({});
+  const [newItem, setNewItem] = useState<NewItemFormState>(emptyItemState);
 
   const t = language === 'fr'
     ? {
@@ -109,55 +106,43 @@ export default function CoachProgramDetailPage() {
         assignedLabel: 'Client',
         assignedEmpty: 'Non assigne',
         dateLabel: 'Periode',
-        preview: 'Apercu client',
-        editMode: 'Mode edition',
         assignTitle: 'Assigner a un client',
         assignBody: 'Lie ce programme pour le rendre visible chez le client',
         noClient: 'Aucun client',
         saveAssignment: "Enregistrer l'assignation",
         active: 'Actif',
         inactive: 'Inactif',
+        template: 'Template',
         start: 'Debut',
         end: 'Fin',
-        scheduleTitle: 'Planning du programme',
-        scheduleBody: 'Ajoute des jours et des exercices',
-        addDay: 'Ajouter un jour',
-        weeklyOverview: 'Vue semaine',
-        week: 'Semaine',
-        training: 'Entrainement',
-        rest: 'Repos',
-        dayLabel: 'Jour',
-        dayTitle: 'Titre',
-        dayNotes: 'Notes',
-        saveDay: 'Enregistrer',
-        cancel: 'Annuler',
-        noDays: 'Aucun jour pour le moment',
-        noDaysBody: 'Cree un jour et ajoute des exercices',
+        scheduleTitle: 'Calendrier du programme',
+        scheduleBody: 'Clique un jour pour planifier une seance',
+        monthLabel: 'Mois',
+        sessionTitle: 'Titre de la seance',
+        sessionNotes: 'Notes',
+        restDay: 'Jour de repos',
+        createSession: 'Creer la seance',
+        updateSession: 'Mettre a jour',
+        deleteSession: 'Supprimer la seance',
+        sessionRequired: 'Le titre de la seance est requis',
         exerciseName: "Nom de l'exercice",
         targetReps: 'Reps cible',
         sets: 'Series',
         restSeconds: 'Repos (sec)',
         targetWeight: `Charge cible (${weightInputLabel(unit)})`,
         notes: 'Notes',
-        options: 'Options',
-        hideOptions: 'Masquer',
         addExercise: 'Ajouter un exercice',
-        deleteDay: 'Supprimer ce jour et ses exercices ?',
         deleteExercise: 'Supprimer cet exercice ?',
-        dayRequired: 'Le titre du jour est requis',
-        exerciseRequired: "Le nom de l'exercice est requis",
-        dayAdded: 'Jour ajoute',
-        dayRemoved: 'Jour supprime',
-        exerciseAdded: 'Exercice ajoute',
-        exerciseRemoved: 'Exercice supprime',
         saveFail: 'Impossible de mettre a jour le programme',
         assignmentSaved: 'Assignation enregistree',
         loadFail: 'Impossible de charger le programme',
         programNotFound: 'Programme introuvable',
         retry: 'Reessayer',
         backPrograms: 'Retour aux programmes',
-        setsFallback: 'Series non definies',
         restLabel: 'Repos',
+        noSession: 'Aucune seance pour ce jour',
+        selectDay: 'Selectionne un jour',
+        restSummary: 'Ce jour est marque comme repos.',
       }
     : {
         back: 'Back',
@@ -167,84 +152,82 @@ export default function CoachProgramDetailPage() {
         assignedLabel: 'Client',
         assignedEmpty: 'Not assigned',
         dateLabel: 'Timeline',
-        preview: 'Client preview',
-        editMode: 'Edit mode',
         assignTitle: 'Assign to client',
         assignBody: 'Link this program to a client to make it visible',
         noClient: 'No client assigned',
         saveAssignment: 'Save assignment',
         active: 'Active',
         inactive: 'Inactive',
+        template: 'Template',
         start: 'Start',
         end: 'End',
-        scheduleTitle: 'Program schedule',
-        scheduleBody: 'Add training days and exercises',
-        addDay: 'Add day',
-        weeklyOverview: 'Weekly overview',
-        week: 'Week',
-        training: 'Training',
-        rest: 'Rest',
-        dayLabel: 'Day',
-        dayTitle: 'Title',
-        dayNotes: 'Notes',
-        saveDay: 'Save day',
-        cancel: 'Cancel',
-        noDays: 'No training days yet',
-        noDaysBody: 'Create a day and start adding exercises',
+        scheduleTitle: 'Program calendar',
+        scheduleBody: 'Click a day to plan a session',
+        monthLabel: 'Month',
+        sessionTitle: 'Session title',
+        sessionNotes: 'Notes',
+        restDay: 'Rest day',
+        createSession: 'Create session',
+        updateSession: 'Update session',
+        deleteSession: 'Delete session',
+        sessionRequired: 'Session title is required',
         exerciseName: 'Exercise name',
         targetReps: 'Target reps',
         sets: 'Sets',
         restSeconds: 'Rest (sec)',
         targetWeight: `Target weight (${weightInputLabel(unit)})`,
         notes: 'Notes',
-        options: 'Options',
-        hideOptions: 'Hide',
         addExercise: 'Add exercise',
-        deleteDay: 'Delete this day and its exercises?',
         deleteExercise: 'Delete this exercise?',
-        dayRequired: 'Day title is required',
-        exerciseRequired: 'Exercise name is required',
-        dayAdded: 'Day added',
-        dayRemoved: 'Day removed',
-        exerciseAdded: 'Exercise added',
-        exerciseRemoved: 'Exercise removed',
         saveFail: 'Failed to update program',
         assignmentSaved: 'Assignment saved',
         loadFail: 'Failed to load program',
         programNotFound: 'Program not found',
         retry: 'Retry',
         backPrograms: 'Back to programs',
-        setsFallback: 'Sets not set',
         restLabel: 'Rest',
+        noSession: 'No session on this day',
+        selectDay: 'Select a day',
+        restSummary: 'This day is marked as rest.',
       };
 
   const dayLabels = language === 'fr'
     ? ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const dayNames = language === 'fr'
-    ? ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
-    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const dayOptions = dayNames.map((name, index) => ({
-    value: index + 1,
-    label: name,
-  }));
 
-  const itemsByDay = useMemo(() => {
-    return items.reduce<Record<string, ProgramItem[]>>((acc, item) => {
-      if (!acc[item.program_day_id]) acc[item.program_day_id] = [];
-      acc[item.program_day_id].push(item);
+  const formatDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const monthLabel = activeMonth.toLocaleDateString(
+    language === 'fr' ? 'fr-FR' : 'en-US',
+    { month: 'long', year: 'numeric' }
+  );
+
+  const calendarDays = useMemo(() => {
+    const startOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth(), 1);
+    const daysInMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + 1, 0).getDate();
+    const offset = (startOfMonth.getDay() + 6) % 7;
+    const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
+
+    return Array.from({ length: totalCells }, (_, index) => {
+      const dayNumber = index - offset + 1;
+      if (dayNumber < 1 || dayNumber > daysInMonth) {
+        return null;
+      }
+      return new Date(activeMonth.getFullYear(), activeMonth.getMonth(), dayNumber);
+    });
+  }, [activeMonth]);
+
+  const sessionsByDate = useMemo(() => {
+    return sessions.reduce<Record<string, ProgramSession>>((acc, session) => {
+      acc[session.date] = session;
       return acc;
     }, {});
-  }, [items]);
-
-  const weeks = useMemo(() => {
-    const unique = new Set(days.map((day) => day.week_number));
-    return Array.from(unique).sort((a, b) => a - b);
-  }, [days]);
-
-  const assignedClient = useMemo(() => {
-    return clients.find((client) => client.id === selectedClientId) || null;
-  }, [clients, selectedClientId]);
+  }, [sessions]);
 
   const loadProgram = useCallback(async () => {
     try {
@@ -258,7 +241,7 @@ export default function CoachProgramDetailPage() {
       const { data: programData, error: programError } = await supabase
         .from('programs')
         .select(
-          'id, coach_id, client_id, title, description, start_date, end_date, is_active'
+          'id, coach_id, client_id, title, description, start_date, end_date, is_active, is_template'
         )
         .eq('id', programId)
         .eq('coach_id', user.id)
@@ -277,33 +260,6 @@ export default function CoachProgramDetailPage() {
 
       if (clientsError) throw clientsError;
       setClients((clientsData as ClientSummary[]) || []);
-
-      const { data: daysData, error: daysError } = await supabase
-        .from('program_days')
-        .select('id, program_id, week_number, day_number, title, notes')
-        .eq('program_id', programId)
-        .order('week_number', { ascending: true })
-        .order('day_number', { ascending: true });
-
-      if (daysError) throw daysError;
-      const programDays = (daysData as ProgramDay[]) || [];
-      setDays(programDays);
-
-      if (programDays.length > 0) {
-        const dayIds = programDays.map((day) => day.id);
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('program_items')
-          .select(
-            'id, program_day_id, exercise_name, order_index, target_sets, target_reps, target_weight, rest_seconds, notes'
-          )
-          .in('program_day_id', dayIds)
-          .order('order_index', { ascending: true });
-
-        if (itemsError) throw itemsError;
-        setItems((itemsData as ProgramItem[]) || []);
-      } else {
-        setItems([]);
-      }
     } catch (error: any) {
       console.error('Error loading program:', error);
       const message =
@@ -316,14 +272,76 @@ export default function CoachProgramDetailPage() {
     }
   }, [programId, router, t.loadFail]);
 
+  const loadSessionsForMonth = useCallback(async () => {
+    try {
+      const startOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth(), 1);
+      const endOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + 1, 0);
+      const startKey = formatDateKey(startOfMonth);
+      const endKey = formatDateKey(endOfMonth);
+
+      const { data, error } = await supabase
+        .from('program_sessions')
+        .select('id, program_id, date, title, is_rest_day, notes')
+        .eq('program_id', programId)
+        .gte('date', startKey)
+        .lte('date', endKey)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setSessions((data as ProgramSession[]) || []);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+      toast.error(t.loadFail);
+    }
+  }, [activeMonth, programId, t.loadFail]);
+
+  const loadSessionItems = useCallback(async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('session_items')
+        .select(
+          'id, program_session_id, exercise_name, order_index, target_sets, target_reps, target_weight, rest_seconds, notes'
+        )
+        .eq('program_session_id', sessionId)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setSessionItems((data as SessionItem[]) || []);
+    } catch (error) {
+      console.error('Error loading session items:', error);
+      toast.error(t.loadFail);
+    }
+  }, [t.loadFail]);
+
   useEffect(() => {
     loadProgram();
   }, [loadProgram]);
 
   useEffect(() => {
-    if (weeks.length === 0) return;
-    setSelectedWeek((prev) => (prev === null ? weeks[0] : prev));
-  }, [weeks]);
+    loadSessionsForMonth();
+  }, [loadSessionsForMonth]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setSelectedSession(null);
+      setSessionItems([]);
+      setSessionForm({ title: '', is_rest_day: false, notes: '' });
+      return;
+    }
+    const session = sessionsByDate[selectedDate] || null;
+    setSelectedSession(session);
+    if (session) {
+      setSessionForm({
+        title: session.title,
+        is_rest_day: session.is_rest_day,
+        notes: session.notes || '',
+      });
+      loadSessionItems(session.id);
+    } else {
+      setSessionItems([]);
+      setSessionForm({ title: '', is_rest_day: false, notes: '' });
+    }
+  }, [selectedDate, sessionsByDate, loadSessionItems]);
 
   const handleAssign = async () => {
     if (!program) return;
@@ -365,104 +383,152 @@ export default function CoachProgramDetailPage() {
     }
   };
 
-  const handleAddDay = async () => {
-    if (!newDay.title.trim()) {
-      toast.error(t.dayRequired);
+  const handleCreateSession = async () => {
+    if (!selectedDate) return;
+    const title =
+      sessionForm.title.trim() ||
+      (sessionForm.is_rest_day ? t.restLabel : '');
+    if (!title) {
+      toast.error(t.sessionRequired);
       return;
     }
 
     try {
-      if (!selectedWeek) {
-        setSelectedWeek(newDay.week_number);
-      }
+      setSessionSaving(true);
       const { data, error } = await supabase
-        .from('program_days')
+        .from('program_sessions')
         .insert({
           program_id: programId,
-          week_number: newDay.week_number,
-          day_number: newDay.day_number,
-          title: newDay.title,
-          notes: newDay.notes || null,
+          date: selectedDate,
+          title,
+          is_rest_day: sessionForm.is_rest_day,
+          notes: sessionForm.notes || null,
         })
         .select()
         .single();
 
       if (error) throw error;
-
-      setDays((prev) => [...prev, data as ProgramDay]);
-      setShowAddDay(false);
-      setNewDay({ week_number: 1, day_number: 1, title: '', notes: '' });
-      toast.success(t.dayAdded);
+      const session = data as ProgramSession;
+      setSessions((prev) => [...prev, session]);
+      setSelectedSession(session);
+      setSessionForm({
+        title: session.title,
+        is_rest_day: session.is_rest_day,
+        notes: session.notes || '',
+      });
     } catch (error) {
-      console.error('Error adding day:', error);
+      console.error('Error creating session:', error);
       toast.error(t.saveFail);
+    } finally {
+      setSessionSaving(false);
     }
   };
 
-  const handleDeleteDay = async (dayId: string) => {
-    if (!confirm(t.deleteDay)) return;
-
-    try {
-      const { error } = await supabase
-        .from('program_days')
-        .delete()
-        .eq('id', dayId);
-
-      if (error) throw error;
-
-      setDays((prev) => prev.filter((day) => day.id !== dayId));
-      setItems((prev) => prev.filter((item) => item.program_day_id !== dayId));
-      toast.success(t.dayRemoved);
-    } catch (error) {
-      console.error('Error deleting day:', error);
-      toast.error(t.saveFail);
-    }
-  };
-
-  const handleAddItem = async (day: ProgramDay) => {
-    const formState = newItemsByDay[day.id] || emptyItemState;
-    if (!formState.exercise_name.trim()) {
-      toast.error(t.exerciseRequired);
+  const handleUpdateSession = async () => {
+    if (!selectedSession) return;
+    const title =
+      sessionForm.title.trim() ||
+      (sessionForm.is_rest_day ? t.restLabel : '');
+    if (!title) {
+      toast.error(t.sessionRequired);
       return;
     }
 
-    const dayItems = itemsByDay[day.id] || [];
-    const orderIndex = dayItems.length + 1;
+    try {
+      setSessionSaving(true);
+      const { error } = await supabase
+        .from('program_sessions')
+        .update({
+          title,
+          is_rest_day: sessionForm.is_rest_day,
+          notes: sessionForm.notes || null,
+        })
+        .eq('id', selectedSession.id);
 
-    const weightValue = formState.target_weight
-      ? toMetricWeight(Number(formState.target_weight), unit)
+      if (error) throw error;
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === selectedSession.id
+            ? { ...session, title, is_rest_day: sessionForm.is_rest_day, notes: sessionForm.notes || null }
+            : session
+        )
+      );
+      setSelectedSession({
+        ...selectedSession,
+        title,
+        is_rest_day: sessionForm.is_rest_day,
+        notes: sessionForm.notes || null,
+      });
+      if (sessionForm.is_rest_day) {
+        setSessionItems([]);
+      }
+      toast.success(t.updateSession);
+    } catch (error) {
+      console.error('Error updating session:', error);
+      toast.error(t.saveFail);
+    } finally {
+      setSessionSaving(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!selectedSession) return;
+    if (!confirm(t.deleteSession)) return;
+
+    try {
+      setSessionSaving(true);
+      const { error } = await supabase
+        .from('program_sessions')
+        .delete()
+        .eq('id', selectedSession.id);
+
+      if (error) throw error;
+
+      setSessions((prev) => prev.filter((session) => session.id !== selectedSession.id));
+      setSelectedSession(null);
+      setSessionItems([]);
+      setSessionForm({ title: '', is_rest_day: false, notes: '' });
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      toast.error(t.saveFail);
+    } finally {
+      setSessionSaving(false);
+    }
+  };
+
+  const handleAddItem = async () => {
+    if (!selectedSession) return;
+    if (!newItem.exercise_name.trim()) {
+      toast.error(t.exerciseName);
+      return;
+    }
+
+    const orderIndex = sessionItems.length + 1;
+    const weightValue = newItem.target_weight
+      ? toMetricWeight(Number(newItem.target_weight), unit)
       : null;
 
     try {
       const { data, error } = await supabase
-        .from('program_items')
+        .from('session_items')
         .insert({
-          program_day_id: day.id,
-          exercise_name: formState.exercise_name,
+          program_session_id: selectedSession.id,
+          exercise_name: newItem.exercise_name,
           order_index: orderIndex,
-          target_sets: formState.target_sets
-            ? Number(formState.target_sets)
-            : null,
-          target_reps: formState.target_reps || null,
+          target_sets: newItem.target_sets ? Number(newItem.target_sets) : null,
+          target_reps: newItem.target_reps || null,
           target_weight: weightValue,
-          rest_seconds: formState.rest_seconds
-            ? Number(formState.rest_seconds)
-            : null,
-          notes: formState.notes || null,
+          rest_seconds: newItem.rest_seconds ? Number(newItem.rest_seconds) : null,
+          notes: newItem.notes || null,
         })
         .select()
         .single();
 
       if (error) throw error;
-
-      setItems((prev) => [...prev, data as ProgramItem]);
-      setNewItemsByDay((prev) => ({
-        ...prev,
-        [day.id]: { ...emptyItemState },
-      }));
-      toast.success(t.exerciseAdded);
+      setSessionItems((prev) => [...prev, data as SessionItem]);
+      setNewItem(emptyItemState);
     } catch (error) {
-      console.error('Error adding exercise:', error);
+      console.error('Error adding session item:', error);
       toast.error(t.saveFail);
     }
   };
@@ -472,16 +538,14 @@ export default function CoachProgramDetailPage() {
 
     try {
       const { error } = await supabase
-        .from('program_items')
+        .from('session_items')
         .delete()
         .eq('id', itemId);
 
       if (error) throw error;
-
-      setItems((prev) => prev.filter((item) => item.id !== itemId));
-      toast.success(t.exerciseRemoved);
+      setSessionItems((prev) => prev.filter((item) => item.id !== itemId));
     } catch (error) {
-      console.error('Error deleting exercise:', error);
+      console.error('Error deleting session item:', error);
       toast.error(t.saveFail);
     }
   };
@@ -527,10 +591,6 @@ export default function CoachProgramDetailPage() {
     );
   }
 
-  const activeWeek = selectedWeek || weeks[0];
-  const activeDays = days.filter((day) => day.week_number === activeWeek);
-  const dayMap = new Map(activeDays.map((day) => [day.day_number, day]));
-
   return (
     <CoachLayout>
       <div className="min-h-screen bg-background">
@@ -553,12 +613,6 @@ export default function CoachProgramDetailPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant={previewMode ? 'secondary' : 'ghost'}
-                onClick={() => setPreviewMode((prev) => !prev)}
-              >
-                {previewMode ? t.editMode : t.preview}
-              </Button>
             </div>
           </div>
         </header>
@@ -576,9 +630,14 @@ export default function CoachProgramDetailPage() {
                 <Badge variant={program.is_active ? 'success' : 'warning'}>
                   {program.is_active ? t.active : t.inactive}
                 </Badge>
+                {program.is_template && (
+                  <Badge variant="info">{t.template}</Badge>
+                )}
                 <Badge variant="info">
                   {t.assignedLabel}:{' '}
-                  {assignedClient?.display_name || t.assignedEmpty}
+                  {selectedClientId
+                    ? clients.find((client) => client.id === selectedClientId)?.display_name
+                    : t.assignedEmpty}
                 </Badge>
                 {(program.start_date || program.end_date) && (
                   <Badge variant="info">
@@ -590,7 +649,7 @@ export default function CoachProgramDetailPage() {
             </div>
           </Card>
 
-          {!previewMode && (
+          {!program.is_template && (
             <Card className="">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -639,225 +698,193 @@ export default function CoachProgramDetailPage() {
           )}
 
           <Card className="">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
               <div>
                 <h2 className="text-xl font-semibold">{t.scheduleTitle}</h2>
                 <p className="text-text-secondary text-sm mt-1">
                   {t.scheduleBody}
                 </p>
               </div>
-              {!previewMode && (
+              <div className="flex items-center gap-2">
                 <Button
-                  variant="secondary"
-                  onClick={() => setShowAddDay((prev) => !prev)}
+                  variant="ghost"
+                  onClick={() =>
+                    setActiveMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                    )
+                  }
                 >
-                  <Plus className="w-4 h-4" />
-                  {t.addDay}
+                  <ChevronLeft className="w-4 h-4" />
                 </Button>
-              )}
+                <div className="text-sm text-text-secondary">
+                  {t.monthLabel}: <span className="font-semibold text-text-primary">{monthLabel}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    setActiveMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                    )
+                  }
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
-            {weeks.length > 0 && (
-              <Card className="mb-6 border border-border/60 bg-background-elevated/50">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-secondary" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">{t.weeklyOverview}</h3>
-                      <p className="text-sm text-text-tertiary">
-                        {t.week} {activeWeek}
-                      </p>
-                    </div>
-                  </div>
-                  {weeks.length > 1 && (
-                    <select
-                      value={activeWeek}
-                      onChange={(e) => setSelectedWeek(Number(e.target.value))}
-                      className="input min-w-[160px]"
-                    >
-                      {weeks.map((week) => (
-                        <option key={week} value={week}>
-                          {t.week} {week}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 mt-4">
-                  {dayNames.map((dayName, index) => {
-                    const dayNumber = index + 1;
-                    const dayInfo = dayMap.get(dayNumber);
-                    const hasTraining = !!dayInfo;
-
-                    return (
-                      <div
-                        key={dayName}
-                        className={`rounded-lg border px-3 py-4 text-center ${
-                          hasTraining
-                            ? 'border-primary/40 bg-primary/10'
-                            : 'border-border bg-background-surface'
-                        }`}
-                      >
-                        <p className="text-xs text-text-tertiary mb-1">
-                          {dayLabels[index]}
-                        </p>
-                        <p className="font-semibold text-sm">{dayName}</p>
-                        <p className="text-xs text-text-tertiary mt-2">
-                          {hasTraining ? t.training : t.rest}
-                        </p>
-                        {dayInfo && (
-                          <p className="text-xs text-text-secondary mt-1">
-                            {dayInfo.title}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
-
-            {showAddDay && !previewMode && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <Input
-                  type="number"
-                  label={t.week}
-                  min={1}
-                  value={newDay.week_number}
-                  onChange={(e) =>
-                    setNewDay({
-                      ...newDay,
-                      week_number: Number(e.target.value),
-                    })
+            <Card className="border border-border/60 bg-background-elevated/50">
+              <div className="grid grid-cols-7 gap-2 text-center text-xs text-text-tertiary mb-2">
+                {dayLabels.map((label) => (
+                  <div key={label}>{label}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((date, index) => {
+                  if (!date) {
+                    return <div key={`empty-${index}`} className="min-h-[90px]" />;
                   }
-                />
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    {t.dayLabel}
-                  </label>
-                  <select
-                    className="input"
-                    value={newDay.day_number}
-                    onChange={(e) =>
-                      setNewDay({
-                        ...newDay,
-                        day_number: Number(e.target.value),
-                      })
-                    }
-                  >
-                    {dayOptions.map((day) => (
-                      <option key={day.value} value={day.value}>
-                        {day.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <Input
-                  type="text"
-                  label={t.dayTitle}
-                  value={newDay.title}
-                  onChange={(e) => setNewDay({ ...newDay, title: e.target.value })}
-                />
-                <Input
-                  type="text"
-                  label={t.dayNotes}
-                  value={newDay.notes}
-                  onChange={(e) => setNewDay({ ...newDay, notes: e.target.value })}
-                />
-                <div className="md:col-span-4 flex gap-3">
-                  <Button variant="primary" onClick={handleAddDay}>
-                    {t.saveDay}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowAddDay(false)}
-                  >
-                    {t.cancel}
-                  </Button>
-                </div>
-              </div>
-            )}
+                  const dateKey = formatDateKey(date);
+                  const session = sessionsByDate[dateKey];
+                  const isSelected = selectedDate === dateKey;
 
-            {days.length === 0 ? (
-              <div className="text-center py-10">
-                <p className="text-text-secondary mb-2">{t.noDays}</p>
-                <p className="text-sm text-text-tertiary">{t.noDaysBody}</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {days
-                  .filter((day) => day.week_number === activeWeek)
-                  .map((day) => {
-                    const dayItems = itemsByDay[day.id] || [];
-                    const formState = newItemsByDay[day.id] || emptyItemState;
-
-                    return (
-                      <Card
-                        key={day.id}
-                        className="border border-border/60 bg-background-elevated/50"
-                      >
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h3 className="text-lg font-semibold">
-                              {t.week} {day.week_number} - {dayNames[day.day_number - 1]} - {day.title}
-                            </h3>
-                            {day.notes && (
-                              <p className="text-sm text-text-tertiary">
-                                {day.notes}
-                              </p>
-                            )}
-                          </div>
-                          {!previewMode && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteDay(day.id)}
-                            >
-                              <Trash2 className="w-4 h-4 text-danger" />
-                            </Button>
-                          )}
+                  return (
+                    <button
+                      key={dateKey}
+                      onClick={() => setSelectedDate(dateKey)}
+                      className={`min-h-[90px] rounded-lg border px-2 py-2 text-left transition-colors ${
+                        session
+                          ? 'border-primary/40 bg-primary/10'
+                          : 'border-border bg-background-surface'
+                      } ${isSelected ? 'ring-2 ring-primary/40' : ''}`}
+                    >
+                      <div className="text-xs text-text-tertiary mb-1">
+                        {date.getDate()}
+                      </div>
+                      {session ? (
+                        <div className="text-xs font-semibold text-text-primary">
+                          {session.is_rest_day ? t.restLabel : session.title}
                         </div>
+                      ) : (
+                        <div className="text-[11px] text-text-tertiary">
+                          {t.selectDay}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
 
-                        {dayItems.length > 0 && (
-                          <div className="space-y-3 mb-6">
-                            {dayItems.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-lg border border-border/60 bg-background-surface px-4 py-3"
-                              >
-                                <div>
-                                  <p className="font-semibold">
-                                    {item.order_index}. {item.exercise_name}
-                                  </p>
-                                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-tertiary">
-                                    <span className="rounded-full border border-border px-2 py-1">
-                                      {item.target_sets ? `${item.target_sets} ${t.sets}` : t.setsFallback}
-                                    </span>
-                                    {item.target_reps && (
-                                      <span className="rounded-full border border-border px-2 py-1">
-                                        {item.target_reps} reps
-                                      </span>
-                                    )}
-                                    {item.target_weight && (
-                                      <span className="rounded-full border border-border px-2 py-1">
-                                        {formatWeight(item.target_weight, unit)}
-                                      </span>
-                                    )}
-                                    {item.rest_seconds && (
-                                      <span className="rounded-full border border-border px-2 py-1">
-                                        {t.restLabel} {item.rest_seconds}s
-                                      </span>
+            <div className="mt-6">
+              {!selectedDate ? (
+                <p className="text-text-secondary">{t.selectDay}</p>
+              ) : (
+                <Card className="border border-border/60 bg-background-elevated/50">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <span className="font-semibold">{selectedDate}</span>
+                    </div>
+                    {selectedSession && (
+                      <Button variant="ghost" size="sm" onClick={handleDeleteSession}>
+                        <Trash2 className="w-4 h-4 text-danger" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      type="text"
+                      label={t.sessionTitle}
+                      value={sessionForm.title}
+                      onChange={(e) => setSessionForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))}
+                    />
+                    <Input
+                      type="text"
+                      label={t.sessionNotes}
+                      value={sessionForm.notes}
+                      onChange={(e) => setSessionForm((prev) => ({
+                        ...prev,
+                        notes: e.target.value,
+                      }))}
+                    />
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <input
+                      id="restDayToggle"
+                      type="checkbox"
+                      checked={sessionForm.is_rest_day}
+                      onChange={(e) => setSessionForm((prev) => ({
+                        ...prev,
+                        is_rest_day: e.target.checked,
+                      }))}
+                    />
+                    <label htmlFor="restDayToggle" className="text-sm text-text-secondary">
+                      {t.restDay}
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex gap-3">
+                    {selectedSession ? (
+                      <Button variant="primary" onClick={handleUpdateSession} loading={sessionSaving}>
+                        {t.updateSession}
+                      </Button>
+                    ) : (
+                      <Button variant="primary" onClick={handleCreateSession} loading={sessionSaving}>
+                        <Plus className="w-4 h-4" />
+                        {t.createSession}
+                      </Button>
+                    )}
+                  </div>
+
+                  {selectedSession && (
+                    <div className="mt-6 space-y-4">
+                      {sessionForm.is_rest_day ? (
+                        <p className="text-sm text-text-tertiary">{t.restSummary}</p>
+                      ) : (
+                        <>
+                          {sessionItems.length > 0 && (
+                            <div className="space-y-3">
+                              {sessionItems.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-lg border border-border/60 bg-background-surface px-4 py-3"
+                                >
+                                  <div>
+                                    <p className="font-semibold">
+                                      {item.order_index}. {item.exercise_name}
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-tertiary">
+                                      {item.target_sets && (
+                                        <span className="rounded-full border border-border px-2 py-1">
+                                          {item.target_sets} {t.sets}
+                                        </span>
+                                      )}
+                                      {item.target_reps && (
+                                        <span className="rounded-full border border-border px-2 py-1">
+                                          {item.target_reps} reps
+                                        </span>
+                                      )}
+                                      {item.target_weight && (
+                                        <span className="rounded-full border border-border px-2 py-1">
+                                          {formatWeight(item.target_weight, unit)}
+                                        </span>
+                                      )}
+                                      {item.rest_seconds && (
+                                        <span className="rounded-full border border-border px-2 py-1">
+                                          {t.restLabel} {item.rest_seconds}s
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.notes && (
+                                      <p className="mt-2 text-sm text-text-tertiary">
+                                        {item.notes}
+                                      </p>
                                     )}
                                   </div>
-                                  {item.notes && (
-                                    <p className="mt-2 text-sm text-text-tertiary">
-                                      {item.notes}
-                                    </p>
-                                  )}
-                                </div>
-                                {!previewMode && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -865,133 +892,84 @@ export default function CoachProgramDetailPage() {
                                   >
                                     <Trash2 className="w-4 h-4 text-danger" />
                                   </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
-                        {!previewMode && (
-                          <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <Input
-                                type="text"
-                                label={t.exerciseName}
-                                value={formState.exercise_name}
-                                onChange={(e) =>
-                                  setNewItemsByDay((prev) => ({
-                                    ...prev,
-                                    [day.id]: {
-                                      ...formState,
-                                      exercise_name: e.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                              <Input
-                                type="text"
-                                label={t.targetReps}
-                                placeholder="e.g. 8-10"
-                                value={formState.target_reps}
-                                onChange={(e) =>
-                                  setNewItemsByDay((prev) => ({
-                                    ...prev,
-                                    [day.id]: {
-                                      ...formState,
-                                      target_reps: e.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                              <Input
-                                type="number"
-                                label={t.sets}
-                                min={1}
-                                value={formState.target_sets}
-                                onChange={(e) =>
-                                  setNewItemsByDay((prev) => ({
-                                    ...prev,
-                                    [day.id]: {
-                                      ...formState,
-                                      target_sets: e.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                            {expandedFormByDay[day.id] && (
-                              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Input
-                                  type="number"
-                                  label={t.restSeconds}
-                                  min={0}
-                                  value={formState.rest_seconds}
-                                  onChange={(e) =>
-                                    setNewItemsByDay((prev) => ({
-                                      ...prev,
-                                      [day.id]: {
-                                        ...formState,
-                                        rest_seconds: e.target.value,
-                                      },
-                                    }))
-                                  }
-                                />
-                                <Input
-                                  type="number"
-                                  label={t.targetWeight}
-                                  min={0}
-                                  step={0.5}
-                                  value={formState.target_weight}
-                                  onChange={(e) =>
-                                    setNewItemsByDay((prev) => ({
-                                      ...prev,
-                                      [day.id]: {
-                                        ...formState,
-                                        target_weight: e.target.value,
-                                      },
-                                    }))
-                                  }
-                                />
-                                <Input
-                                  type="text"
-                                  label={t.notes}
-                                  value={formState.notes}
-                                  onChange={(e) =>
-                                    setNewItemsByDay((prev) => ({
-                                      ...prev,
-                                      [day.id]: {
-                                        ...formState,
-                                        notes: e.target.value,
-                                      },
-                                    }))
-                                  }
-                                />
-                              </div>
-                            )}
-                            <div className="mt-4 flex flex-wrap gap-3">
-                              <Button variant="secondary" onClick={() => handleAddItem(day)}>
-                                <Plus className="w-4 h-4" />
-                                {t.addExercise}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                onClick={() =>
-                                  setExpandedFormByDay((prev) => ({
-                                    ...prev,
-                                    [day.id]: !prev[day.id],
-                                  }))
-                                }
-                              >
-                                {expandedFormByDay[day.id] ? t.hideOptions : t.options}
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                      </Card>
-                    );
-                  })}
-              </div>
-            )}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Input
+                              type="text"
+                              label={t.exerciseName}
+                              value={newItem.exercise_name}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                exercise_name: e.target.value,
+                              }))}
+                            />
+                            <Input
+                              type="text"
+                              label={t.targetReps}
+                              value={newItem.target_reps}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                target_reps: e.target.value,
+                              }))}
+                            />
+                            <Input
+                              type="number"
+                              label={t.sets}
+                              min={1}
+                              value={newItem.target_sets}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                target_sets: e.target.value,
+                              }))}
+                            />
+                            <Input
+                              type="number"
+                              label={t.restSeconds}
+                              min={0}
+                              value={newItem.rest_seconds}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                rest_seconds: e.target.value,
+                              }))}
+                            />
+                            <Input
+                              type="number"
+                              label={t.targetWeight}
+                              min={0}
+                              step={0.5}
+                              value={newItem.target_weight}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                target_weight: e.target.value,
+                              }))}
+                            />
+                            <Input
+                              type="text"
+                              label={t.notes}
+                              value={newItem.notes}
+                              onChange={(e) => setNewItem((prev) => ({
+                                ...prev,
+                                notes: e.target.value,
+                              }))}
+                            />
+                          </div>
+                          <div className="mt-4">
+                            <Button variant="secondary" onClick={handleAddItem}>
+                              <Plus className="w-4 h-4" />
+                              {t.addExercise}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
           </Card>
         </main>
       </div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Copy, ChevronLeft, Calendar } from 'lucide-react';
+import { Copy, ChevronLeft, Calendar, ChevronRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import ClientLayout from '@/components/layout/ClientLayout';
 import { getCurrentUser, supabase } from '@/lib/supabase';
@@ -19,18 +19,18 @@ interface Program {
   end_date: string | null;
 }
 
-interface ProgramDay {
+interface ProgramSession {
   id: string;
   program_id: string;
-  week_number: number;
-  day_number: number;
+  date: string;
   title: string;
+  is_rest_day: boolean;
   notes: string | null;
 }
 
-interface ProgramItem {
+interface SessionItem {
   id: string;
-  program_day_id: string;
+  program_session_id: string;
   exercise_name: string;
   order_index: number;
   target_sets: number | null;
@@ -46,9 +46,11 @@ export default function ClientProgramPage() {
   const { unit } = useUnits();
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState<Program | null>(null);
-  const [days, setDays] = useState<ProgramDay[]>([]);
-  const [items, setItems] = useState<ProgramItem[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<ProgramSession[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ProgramSession | null>(null);
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const [activeMonth, setActiveMonth] = useState(() => new Date());
 
   const t = language === 'fr'
     ? {
@@ -59,21 +61,18 @@ export default function ClientProgramPage() {
         end: 'Fin',
         programPending: 'Programme en preparation',
         programPendingBody: 'Ton coach construit ton plan',
-        weeklyPlan: 'Plan hebdo',
-        week: 'Semaine',
-        training: 'Entrainement',
+        calendarTitle: 'Calendrier du mois',
         rest: 'Repos',
         today: 'Aujourd hui',
-        todayFocus: 'Focus du jour',
-        todayRest: 'Jour de repos',
         logWorkout: 'Logger la seance',
         exercises: 'exercices',
         sets: 'series',
         noExercises: 'Aucun exercice pour le moment',
         noProgram: 'Aucun programme pour le moment',
         noProgramBody: 'Ton coach va bientot assigner un programme',
-        setsFallback: 'Series non definies',
         restLabel: 'Repos',
+        selectDay: 'Selectionne un jour',
+        sessionNotes: 'Notes',
       }
     : {
         back: 'Back',
@@ -83,57 +82,57 @@ export default function ClientProgramPage() {
         end: 'End',
         programPending: 'Program not available yet',
         programPendingBody: 'Your coach is building your plan',
-        weeklyPlan: 'Weekly plan',
-        week: 'Week',
-        training: 'Training',
+        calendarTitle: 'Monthly calendar',
         rest: 'Rest',
         today: 'Today',
-        todayFocus: 'Today focus',
-        todayRest: 'Rest day',
         logWorkout: 'Log workout',
         exercises: 'exercises',
         sets: 'sets',
         noExercises: 'No exercises added yet',
         noProgram: 'No program assigned yet',
         noProgramBody: 'Your coach will assign you a program soon',
-        setsFallback: 'Sets not set',
         restLabel: 'Rest',
+        selectDay: 'Select a day',
+        sessionNotes: 'Notes',
       };
 
   const dayLabels = language === 'fr'
     ? ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const dayNames = language === 'fr'
-    ? ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
-    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  const itemsByDay = useMemo(() => {
-    return items.reduce<Record<string, ProgramItem[]>>((acc, item) => {
-      if (!acc[item.program_day_id]) acc[item.program_day_id] = [];
-      acc[item.program_day_id].push(item);
+  const formatDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const monthLabel = activeMonth.toLocaleDateString(
+    language === 'fr' ? 'fr-FR' : 'en-US',
+    { month: 'long', year: 'numeric' }
+  );
+
+  const calendarDays = useMemo(() => {
+    const startOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth(), 1);
+    const daysInMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + 1, 0).getDate();
+    const offset = (startOfMonth.getDay() + 6) % 7;
+    const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
+
+    return Array.from({ length: totalCells }, (_, index) => {
+      const dayNumber = index - offset + 1;
+      if (dayNumber < 1 || dayNumber > daysInMonth) {
+        return null;
+      }
+      return new Date(activeMonth.getFullYear(), activeMonth.getMonth(), dayNumber);
+    });
+  }, [activeMonth]);
+
+  const sessionsByDate = useMemo(() => {
+    return sessions.reduce<Record<string, ProgramSession>>((acc, session) => {
+      acc[session.date] = session;
       return acc;
     }, {});
-  }, [items]);
-
-  const weeks = useMemo(() => {
-    const unique = new Set(days.map((day) => day.week_number));
-    return Array.from(unique).sort((a, b) => a - b);
-  }, [days]);
-
-  const getCurrentWeekNumber = (startDate: string | null) => {
-    if (!startDate) return null;
-    const start = new Date(startDate);
-    const today = new Date();
-    const diffDays = Math.floor(
-      (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return diffDays >= 0 ? Math.floor(diffDays / 7) + 1 : 1;
-  };
-
-  const getCurrentDayNumber = () => {
-    const day = new Date().getDay();
-    return day === 0 ? 7 : day;
-  };
+  }, [sessions]);
 
   const loadProgram = useCallback(async () => {
     try {
@@ -153,39 +152,14 @@ export default function ClientProgramPage() {
       if (programError) throw programError;
       if (!programData) {
         setProgram(null);
-        setDays([]);
-        setItems([]);
+        setSessions([]);
+        setSelectedDate(null);
+        setSelectedSession(null);
+        setSessionItems([]);
         return;
       }
 
       setProgram(programData as Program);
-
-      const { data: daysData, error: daysError } = await supabase
-        .from('program_days')
-        .select('id, program_id, week_number, day_number, title, notes')
-        .eq('program_id', programData.id)
-        .order('week_number', { ascending: true })
-        .order('day_number', { ascending: true });
-
-      if (daysError) throw daysError;
-      const programDays = (daysData as ProgramDay[]) || [];
-      setDays(programDays);
-
-      if (programDays.length > 0) {
-        const dayIds = programDays.map((day) => day.id);
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('program_items')
-          .select(
-            'id, program_day_id, exercise_name, order_index, target_sets, target_reps, target_weight, rest_seconds, notes'
-          )
-          .in('program_day_id', dayIds)
-          .order('order_index', { ascending: true });
-
-        if (itemsError) throw itemsError;
-        setItems((itemsData as ProgramItem[]) || []);
-      } else {
-        setItems([]);
-      }
     } catch (error) {
       console.error('Error loading program:', error);
     } finally {
@@ -193,17 +167,74 @@ export default function ClientProgramPage() {
     }
   }, [router]);
 
+  const loadSessionsForMonth = useCallback(async (programId: string) => {
+    try {
+      const startOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth(), 1);
+      const endOfMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + 1, 0);
+      const startKey = formatDateKey(startOfMonth);
+      const endKey = formatDateKey(endOfMonth);
+
+      const { data, error } = await supabase
+        .from('program_sessions')
+        .select('id, program_id, date, title, is_rest_day, notes')
+        .eq('program_id', programId)
+        .gte('date', startKey)
+        .lte('date', endKey)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setSessions((data as ProgramSession[]) || []);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+    }
+  }, [activeMonth]);
+
+  const loadSessionItems = useCallback(async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('session_items')
+        .select(
+          'id, program_session_id, exercise_name, order_index, target_sets, target_reps, target_weight, rest_seconds, notes'
+        )
+        .eq('program_session_id', sessionId)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setSessionItems((data as SessionItem[]) || []);
+    } catch (error) {
+      console.error('Error loading session items:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadProgram();
   }, [loadProgram]);
 
   useEffect(() => {
-    if (weeks.length === 0) return;
-    const currentWeek = getCurrentWeekNumber(program?.start_date || null);
-    const nextWeek =
-      currentWeek && weeks.includes(currentWeek) ? currentWeek : weeks[0];
-    setSelectedWeek((prev) => (prev === null ? nextWeek : prev));
-  }, [weeks, program?.start_date]);
+    if (!program) return;
+    loadSessionsForMonth(program.id);
+  }, [program, activeMonth, loadSessionsForMonth]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setSelectedSession(null);
+      setSessionItems([]);
+      return;
+    }
+    const session = sessionsByDate[selectedDate] || null;
+    setSelectedSession(session);
+    if (session) {
+      loadSessionItems(session.id);
+    } else {
+      setSessionItems([]);
+    }
+  }, [selectedDate, sessionsByDate, loadSessionItems]);
+
+  useEffect(() => {
+    if (selectedDate || sessions.length === 0) return;
+    const today = formatDateKey(new Date());
+    setSelectedDate(sessionsByDate[today] ? today : sessions[0].date);
+  }, [selectedDate, sessions, sessionsByDate]);
 
   if (loading) {
     return (
@@ -215,19 +246,7 @@ export default function ClientProgramPage() {
     );
   }
 
-  const activeWeek = selectedWeek || weeks[0];
-  const currentWeek = getCurrentWeekNumber(program?.start_date || null);
-  const currentDay = getCurrentDayNumber();
-  const activeDays = days.filter((day) => day.week_number === activeWeek);
-  const dayMap = new Map(activeDays.map((day) => [day.day_number, day]));
-  const todayDay =
-    currentWeek !== null
-      ? days.find(
-          (day) =>
-            day.week_number === currentWeek && day.day_number === currentDay
-        )
-      : null;
-  const todayItems = todayDay ? itemsByDay[todayDay.id] || [] : [];
+  const todayKey = formatDateKey(new Date());
 
   return (
     <ClientLayout>
@@ -278,185 +297,162 @@ export default function ClientProgramPage() {
               <Card className="">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold">{t.todayFocus}</h3>
+                    <h3 className="text-lg font-semibold">{t.calendarTitle}</h3>
                     <p className="text-sm text-text-tertiary mt-1">
-                      {todayDay
-                        ? `${dayLabels[todayDay.day_number - 1]} - ${todayDay.title}`
-                        : t.todayRest}
+                      {monthLabel}
                     </p>
                   </div>
-                  {todayDay && todayItems.length > 0 && (
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="primary"
-                      onClick={() => router.push('/client/log-workout')}
+                      variant="ghost"
+                      onClick={() =>
+                        setActiveMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                        )
+                      }
                     >
-                      {t.logWorkout}
+                      <ChevronLeft className="w-4 h-4" />
                     </Button>
-                  )}
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        setActiveMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                        )
+                      }
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                {todayDay && todayItems.length > 0 && (
-                  <p className="text-sm text-text-secondary mt-3">
-                    {todayItems.length} {t.exercises}
-                  </p>
-                )}
               </Card>
 
-              {days.length === 0 ? (
-                <Card>
-                  <div className="text-center py-10">
-                    <p className="text-text-secondary mb-2">
-                      {t.programPending}
-                    </p>
-                    <p className="text-sm text-text-tertiary">
-                      {t.programPendingBody}
-                    </p>
-                  </div>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  <Card className="">
+              <Card className="border border-border/60 bg-background-elevated/50">
+                <div className="grid grid-cols-7 gap-2 text-center text-xs text-text-tertiary mb-2">
+                  {dayLabels.map((label) => (
+                    <div key={label}>{label}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarDays.map((date, index) => {
+                    if (!date) {
+                      return <div key={`empty-${index}`} className="min-h-[90px]" />;
+                    }
+                    const dateKey = formatDateKey(date);
+                    const session = sessionsByDate[dateKey];
+                    const isSelected = selectedDate === dateKey;
+                    const isToday = dateKey === todayKey;
+
+                    return (
+                      <button
+                        key={dateKey}
+                        onClick={() => setSelectedDate(dateKey)}
+                        className={`min-h-[90px] rounded-lg border px-2 py-2 text-left transition-colors ${
+                          session
+                            ? 'border-primary/40 bg-primary/10'
+                            : 'border-border bg-background-surface'
+                        } ${isSelected ? 'ring-2 ring-primary/40' : ''} ${isToday ? 'ring-2 ring-success/40' : ''}`}
+                      >
+                        <div className="text-xs text-text-tertiary mb-1">
+                          {date.getDate()}
+                        </div>
+                        {session ? (
+                          <div className="text-xs font-semibold text-text-primary">
+                            {session.is_rest_day ? t.restLabel : session.title}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-text-tertiary">
+                            {t.selectDay}
+                          </div>
+                        )}
+                        {isToday && (
+                          <div className="text-[11px] text-success mt-1">{t.today}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card className="border border-border/60 bg-background-elevated/50">
+                {!selectedDate ? (
+                  <p className="text-text-secondary">{t.selectDay}</p>
+                ) : selectedSession ? (
+                  <div className="space-y-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold">{t.weeklyPlan}</h3>
-                        <p className="text-sm text-text-tertiary">
-                          {t.week} {activeWeek}
-                        </p>
+                        <h3 className="text-lg font-semibold">
+                          {selectedSession.date} - {selectedSession.title}
+                        </h3>
+                        {selectedSession.is_rest_day && (
+                          <p className="text-sm text-text-tertiary">{t.rest}</p>
+                        )}
                       </div>
-                      {weeks.length > 1 && (
-                        <select
-                          value={activeWeek}
-                          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-                          className="input min-w-[160px]"
+                      {!selectedSession.is_rest_day && (
+                        <Button
+                          variant="primary"
+                          onClick={() =>
+                            router.push(`/client/log-workout?sessionId=${selectedSession.id}`)
+                          }
                         >
-                          {weeks.map((week) => (
-                            <option key={week} value={week}>
-                              {t.week} {week}
-                            </option>
-                          ))}
-                        </select>
+                          {t.logWorkout}
+                        </Button>
                       )}
                     </div>
-                  </Card>
-
-                  <div className="space-y-4">
-                    <Card className="border border-border/60 bg-background-elevated/50">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
-                        {dayNames.map((dayName, index) => {
-                          const dayNumber = index + 1;
-                          const dayInfo = dayMap.get(dayNumber);
-                          const isToday =
-                            currentWeek === activeWeek && currentDay === dayNumber;
-                          const hasTraining = !!dayInfo;
-
-                          return (
-                            <div
-                              key={dayName}
-                              className={`rounded-lg border px-3 py-4 text-center ${
-                                hasTraining
-                                  ? 'border-primary/40 bg-primary/10'
-                                  : 'border-border bg-background-surface'
-                              } ${
-                                isToday ? 'ring-2 ring-success/50' : ''
-                              }`}
-                            >
-                              <p className="text-xs text-text-tertiary mb-1">
-                                {dayLabels[index]}
-                              </p>
-                              <p className="font-semibold text-sm">{dayName}</p>
-                              <p className="text-xs text-text-tertiary mt-2">
-                                {hasTraining ? t.training : t.rest}
-                              </p>
-                              {isToday && (
-                                <p className="text-xs text-success mt-1">{t.today}</p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-
-                    {days
-                      .filter((day) => day.week_number === activeWeek)
-                      .map((day) => {
-                        const dayItems = itemsByDay[day.id] || [];
-                        const isToday =
-                          currentWeek === day.week_number &&
-                          currentDay === day.day_number;
-
-                        return (
-                          <Card
-                            key={day.id}
-                            className={` ${
-                              isToday
-                                ? 'bg-success/5'
-                                : ''
-                            }`}
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h3 className="text-lg font-semibold">
-                                  {dayLabels[day.day_number - 1]} - {day.title}
-                                </h3>
-                                <p className="text-sm text-text-tertiary">
-                                  {dayItems.length} {t.exercises}
+                    {selectedSession.notes && (
+                      <p className="text-sm text-text-tertiary">
+                        {t.sessionNotes}: {selectedSession.notes}
+                      </p>
+                    )}
+                    {!selectedSession.is_rest_day && (
+                      <>
+                        {sessionItems.length > 0 ? (
+                          <div className="space-y-3">
+                            {sessionItems.map((item) => (
+                              <div
+                                key={item.id}
+                                className="rounded-lg border border-border/60 bg-background-elevated/60 px-4 py-3"
+                              >
+                                <p className="font-semibold">
+                                  {item.order_index}. {item.exercise_name}
                                 </p>
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-tertiary">
+                                  {item.target_sets && (
+                                    <span className="rounded-full border border-border px-2 py-1">
+                                      {item.target_sets} {t.sets}
+                                    </span>
+                                  )}
+                                  {item.target_reps && (
+                                    <span className="rounded-full border border-border px-2 py-1">
+                                      {item.target_reps} reps
+                                    </span>
+                                  )}
+                                  {item.target_weight && (
+                                    <span className="rounded-full border border-border px-2 py-1">
+                                      {formatWeight(item.target_weight, unit)}
+                                    </span>
+                                  )}
+                                </div>
+                                {item.notes && (
+                                  <p className="text-sm text-text-tertiary mt-2">
+                                    {item.notes}
+                                  </p>
+                                )}
                               </div>
-                              {isToday && (
-                                <span className="text-xs font-semibold text-success">
-                                  {t.today}
-                                </span>
-                              )}
-                            </div>
-
-                            {dayItems.length > 0 ? (
-                              <div className="space-y-3">
-                                {dayItems.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className="rounded-lg border border-border/60 bg-background-elevated/60 px-4 py-3"
-                                  >
-                                    <p className="font-semibold">
-                                      {item.order_index}. {item.exercise_name}
-                                    </p>
-                                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-tertiary">
-                                      <span className="rounded-full border border-border px-2 py-1">
-                                        {item.target_sets ? `${item.target_sets} ${t.sets}` : t.setsFallback}
-                                      </span>
-                                      {item.target_reps && (
-                                        <span className="rounded-full border border-border px-2 py-1">
-                                          {item.target_reps} reps
-                                        </span>
-                                      )}
-                                      {item.target_weight && (
-                                        <span className="rounded-full border border-border px-2 py-1">
-                                          {formatWeight(item.target_weight, unit)}
-                                        </span>
-                                      )}
-                                      {item.rest_seconds && (
-                                        <span className="rounded-full border border-border px-2 py-1">
-                                          {t.restLabel} {item.rest_seconds}s
-                                        </span>
-                                      )}
-                                    </div>
-                                    {item.notes && (
-                                      <p className="text-sm text-text-tertiary mt-2">
-                                        {item.notes}
-                                      </p>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-text-tertiary">
-                                {t.noExercises}
-                              </p>
-                            )}
-                          </Card>
-                        );
-                      })}
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-text-tertiary">
+                            {t.noExercises}
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-text-secondary">{t.programPending}</p>
+                )}
+              </Card>
             </div>
           ) : (
             <Card>

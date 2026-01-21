@@ -19,19 +19,24 @@ export async function GET(request: NextRequest) {
       .not('client_id', 'is', null);
 
     const weekStart = getWeekStartDate();
+    const weekStartDate = new Date(`${weekStart}T00:00:00Z`);
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setUTCDate(weekStartDate.getUTCDate() + 6);
+    const weekEnd = weekEndDate.toISOString().split('T')[0];
 
     for (const program of programs || []) {
       if (!program.client_id || !program.start_date) continue;
       const weekNumber = getWeekNumber(program.start_date);
 
-      const { data: days } = await adminClient
-        .from('program_days')
-        .select('day_number, title')
+      const { data: sessions } = await adminClient
+        .from('program_sessions')
+        .select('date, title, is_rest_day')
         .eq('program_id', program.id)
-        .eq('week_number', weekNumber)
-        .order('day_number', { ascending: true });
+        .gte('date', weekStart)
+        .lte('date', weekEnd)
+        .order('date', { ascending: true });
 
-      if (!days || days.length === 0) continue;
+      if (!sessions || sessions.length === 0) continue;
 
       const { data: threadLink } = await adminClient
         .from('chat_members')
@@ -79,8 +84,11 @@ export async function GET(request: NextRequest) {
 
       if (existing && existing.length > 0) continue;
 
-      const dayLines = days
-        .map((day) => `Jour ${day.day_number}: ${day.title}`)
+      const dayLines = sessions
+        .map((session) => {
+          const label = session.is_rest_day ? 'Repos' : session.title;
+          return `${session.date}: ${label}`;
+        })
         .join('\n');
       const text = `Plan semaine ${weekNumber} (${program.title})\n${dayLines}`;
 

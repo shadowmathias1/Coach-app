@@ -150,13 +150,13 @@ export interface Database {
         }
         Relationships: []
       }
-      program_days: {
+      program_sessions: {
         Row: {
           id: string
           program_id: string
-          week_number: number
-          day_number: number
+          date: string
           title: string
+          is_rest_day: boolean
           notes: string | null
           created_at: string
           updated_at: string
@@ -164,9 +164,9 @@ export interface Database {
         Insert: {
           id?: string
           program_id: string
-          week_number: number
-          day_number: number
+          date: string
           title: string
+          is_rest_day?: boolean
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -174,19 +174,19 @@ export interface Database {
         Update: {
           id?: string
           program_id?: string
-          week_number?: number
-          day_number?: number
+          date?: string
           title?: string
+          is_rest_day?: boolean
           notes?: string | null
           created_at?: string
           updated_at?: string
         }
         Relationships: []
       }
-      program_items: {
+      session_items: {
         Row: {
           id: string
-          program_day_id: string
+          program_session_id: string
           exercise_id: string | null
           exercise_name: string
           order_index: number
@@ -201,7 +201,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          program_day_id: string
+          program_session_id: string
           exercise_id?: string | null
           exercise_name: string
           order_index: number
@@ -216,7 +216,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          program_day_id?: string
+          program_session_id?: string
           exercise_id?: string | null
           exercise_name?: string
           order_index?: number
@@ -272,6 +272,7 @@ export interface Database {
           id: string
           client_id: string
           coach_id: string
+          program_session_id: string | null
           date: string
           duration_minutes: number
           notes: string | null
@@ -282,6 +283,7 @@ export interface Database {
           id?: string
           client_id: string
           coach_id: string
+          program_session_id?: string | null
           date: string
           duration_minutes: number
           notes?: string | null
@@ -292,6 +294,7 @@ export interface Database {
           id?: string
           client_id?: string
           coach_id?: string
+          program_session_id?: string | null
           date?: string
           duration_minutes?: number
           notes?: string | null

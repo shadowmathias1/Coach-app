@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Trash2, Save, ChevronLeft, Search, X } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -35,12 +35,16 @@ interface ExerciseOption {
 
 export default function LogWorkoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get('sessionId');
   const { language } = useLanguage();
   const { unit } = useUnits();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [duration, setDuration] = useState(60);
   const [notes, setNotes] = useState('');
+  const [sessionTitle, setSessionTitle] = useState<string | null>(null);
+  const [sessionDate, setSessionDate] = useState<string | null>(null);
 
   // Exercise library
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseOption[]>([]);
@@ -117,11 +121,11 @@ export default function LogWorkoutPage() {
 
       // Get exercises from multiple sources in parallel
       const [programItemsRes, workoutEntriesRes, exercisesTableRes] = await Promise.all([
-        // 1. From program_items (exercises in programs)
+        // 1. From session_items (exercises in programs)
         supabase
-          .from('program_items')
-          .select('exercise_name, program_days!inner(programs!inner(coach_id))')
-          .eq('program_days.programs.coach_id', coachId),
+          .from('session_items')
+          .select('exercise_name, program_sessions!inner(programs!inner(coach_id))')
+          .eq('program_sessions.programs.coach_id', coachId),
         // 2. From past workout entries
         supabase
           .from('workout_entries')
@@ -186,6 +190,50 @@ export default function LogWorkoutPage() {
   useEffect(() => {
     loadExerciseLibrary();
   }, [loadExerciseLibrary]);
+
+  const loadSessionDefaults = useCallback(async () => {
+    if (!sessionId) return;
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('program_sessions')
+        .select('title, date')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (!sessionError && sessionData) {
+        setSessionTitle(sessionData.title);
+        setSessionDate(sessionData.date);
+      }
+
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('session_items')
+        .select('exercise_name, target_sets')
+        .eq('program_session_id', sessionId)
+        .order('order_index', { ascending: true });
+
+      if (itemsError || !itemsData) return;
+
+      const defaultExercises = itemsData.map((item: { exercise_name: string; target_sets: number | null }) => ({
+        id: crypto.randomUUID(),
+        name: item.exercise_name,
+        exerciseId: null,
+        sets: Array.from({ length: item.target_sets || 1 }, () => ({
+          reps: 0,
+          weight: 0,
+          rpe: 7,
+        })),
+      }));
+
+      setExercises((prev) => (prev.length > 0 ? prev : defaultExercises));
+    } catch (error) {
+      console.error('Error loading session defaults:', error);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    loadSessionDefaults();
+  }, [loadSessionDefaults]);
 
   const addExercise = () => {
     const newExercise: Exercise = {
@@ -360,7 +408,8 @@ export default function LogWorkoutPage() {
         .insert({
           client_id: user.id,
           coach_id: coachId,
-          date: new Date().toISOString().split('T')[0],
+          program_session_id: sessionId,
+          date: sessionDate || new Date().toISOString().split('T')[0],
           duration_minutes: duration,
           notes: notes || null,
         })
@@ -428,11 +477,13 @@ export default function LogWorkoutPage() {
               <div>
                 <h1 className="text-3xl font-bold">{t.title}</h1>
                 <p className="text-text-secondary mt-1">
-                  {new Date().toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })}
+                  {sessionTitle
+                    ? `${sessionTitle} • ${sessionDate || new Date().toISOString().split('T')[0]}`
+                    : new Date().toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                      })}
                 </p>
               </div>
             </div>

@@ -16,6 +16,7 @@ interface Program {
   title: string;
   description: string | null;
   created_at: string;
+  is_template: boolean;
 }
 
 export default function ProgramsPage() {
@@ -23,17 +24,24 @@ export default function ProgramsPage() {
   const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [templates, setTemplates] = useState<Program[]>([]);
+  const [activeTab, setActiveTab] = useState<'programs' | 'templates'>('programs');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProgramName, setNewProgramName] = useState('');
   const [newProgramDescription, setNewProgramDescription] = useState('');
+  const [isTemplate, setIsTemplate] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
 
   const t = language === 'fr'
     ? {
         title: 'Programmes',
         subtitle: 'Cree et gere tes programmes',
         newProgram: 'Nouveau programme',
+        templates: 'Templates',
+        programs: 'Programmes',
         edit: 'Modifier',
         createProgram: 'Creer un programme',
+        createTemplate: 'Creer un template',
         noPrograms: 'Aucun programme',
         createFirst: 'Cree ton premier programme',
         create: 'Creer',
@@ -41,6 +49,9 @@ export default function ProgramsPage() {
         name: 'Nom du programme',
         description: 'Description (optionnel)',
         descriptionPlaceholder: 'Decris ce programme',
+        templateLabel: 'Template',
+        templateSource: 'Partir d un template',
+        noTemplate: 'Aucun template',
         deleteConfirm: 'Supprimer ce programme ?',
         deleteSuccess: 'Programme supprime',
         deleteFail: 'Impossible de supprimer le programme',
@@ -52,8 +63,11 @@ export default function ProgramsPage() {
         title: 'Programs',
         subtitle: 'Create and manage training programs',
         newProgram: 'New program',
+        templates: 'Templates',
+        programs: 'Programs',
         edit: 'Edit',
         createProgram: 'Create program',
+        createTemplate: 'Create template',
         noPrograms: 'No programs yet',
         createFirst: 'Create your first training program',
         create: 'Create',
@@ -61,6 +75,9 @@ export default function ProgramsPage() {
         name: 'Program name',
         description: 'Description (optional)',
         descriptionPlaceholder: 'What is this program about?',
+        templateLabel: 'Template',
+        templateSource: 'Start from a template',
+        noTemplate: 'No template',
         deleteConfirm: 'Delete this program? This cannot be undone.',
         deleteSuccess: 'Program deleted',
         deleteFail: 'Failed to delete program',
@@ -85,6 +102,7 @@ export default function ProgramsPage() {
 
       if (error) throw error;
       setPrograms((data as Program[]) || []);
+      setTemplates(((data as Program[]) || []).filter((item) => item.is_template));
     } catch (error) {
       console.error('Error loading programs:', error);
       toast.error(t.loadFail);
@@ -107,13 +125,16 @@ export default function ProgramsPage() {
       const user = await getCurrentUser();
       if (!user) return;
 
-      const { error } = await supabase
+      const { data: createdProgram, error } = await supabase
         .from('programs')
         .insert({
           coach_id: user.id,
           title: newProgramName,
           description: newProgramDescription || null,
-        });
+          is_template: isTemplate,
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Insert error:', error);
@@ -124,11 +145,78 @@ export default function ProgramsPage() {
       setShowCreateModal(false);
       setNewProgramName('');
       setNewProgramDescription('');
+      setIsTemplate(false);
+      setSelectedTemplateId('');
+      if (selectedTemplateId && !isTemplate && createdProgram?.id) {
+        await copyTemplateSessions(selectedTemplateId, createdProgram.id);
+      }
       loadPrograms();
     } catch (error) {
       console.error('Error creating program:', error);
       toast.error(t.createFail);
     }
+  };
+
+  const copyTemplateSessions = async (templateId: string, newProgramId: string) => {
+    const { data: templateSessions, error: sessionError } = await supabase
+      .from('program_sessions')
+      .select('id, date, title, is_rest_day, notes')
+      .eq('program_id', templateId)
+      .order('date', { ascending: true });
+
+    if (sessionError || !templateSessions || templateSessions.length === 0) return;
+
+    const sessionsToInsert = templateSessions.map((session) => ({
+      program_id: newProgramId,
+      date: session.date,
+      title: session.title,
+      is_rest_day: session.is_rest_day,
+      notes: session.notes,
+    }));
+
+    const { data: newSessions, error: newSessionError } = await supabase
+      .from('program_sessions')
+      .insert(sessionsToInsert)
+      .select('id, date');
+
+    if (newSessionError || !newSessions) return;
+
+    const newSessionIdByDate = new Map<string, string>(
+      newSessions.map((session) => [session.date, session.id])
+    );
+    const sessionDateById = new Map<string, string>(
+      templateSessions.map((session) => [session.id, session.date])
+    );
+
+    const { data: templateItems, error: itemsError } = await supabase
+      .from('session_items')
+      .select(
+        'program_session_id, exercise_name, order_index, target_sets, target_reps, target_weight, rest_seconds, notes'
+      )
+      .in('program_session_id', templateSessions.map((session) => session.id));
+
+    if (itemsError || !templateItems || templateItems.length === 0) return;
+
+    const itemsToInsert = templateItems
+      .map((item) => {
+        const date = sessionDateById.get(item.program_session_id as string);
+        const newSessionId = date ? newSessionIdByDate.get(date) : null;
+        if (!newSessionId) return null;
+        return {
+          program_session_id: newSessionId,
+          exercise_name: item.exercise_name,
+          order_index: item.order_index,
+          target_sets: item.target_sets,
+          target_reps: item.target_reps,
+          target_weight: item.target_weight,
+          rest_seconds: item.rest_seconds,
+          notes: item.notes,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    if (itemsToInsert.length === 0) return;
+    await supabase.from('session_items').insert(itemsToInsert);
   };
 
   const deleteProgram = async (id: string) => {
@@ -173,37 +261,65 @@ export default function ProgramsPage() {
               <Button
                 variant="primary"
                 className="w-full sm:w-auto"
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => {
+                  setIsTemplate(activeTab === 'templates');
+                  setShowCreateModal(true);
+                }}
               >
                 <Plus className="w-4 h-4" />
-                {t.newProgram}
+                {activeTab === 'templates' ? t.createTemplate : t.newProgram}
               </Button>
             </div>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-6 py-8">
-          {programs.length > 0 ? (
+          <div className="flex flex-wrap gap-2 mb-6">
+            <Button
+              variant={activeTab === 'programs' ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('programs')}
+            >
+              {t.programs}
+            </Button>
+            <Button
+              variant={activeTab === 'templates' ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('templates')}
+            >
+              {t.templates}
+            </Button>
+          </div>
+          {(activeTab === 'templates'
+            ? programs.filter((program) => program.is_template)
+            : programs.filter((program) => !program.is_template)
+          ).length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {programs.map((program) => (
+              {(activeTab === 'templates'
+                ? programs.filter((program) => program.is_template)
+                : programs.filter((program) => !program.is_template)
+              ).map((program) => (
                 <Card
                   key={program.id}
                   className="group cursor-pointer relative overflow-hidden   transition-all duration-300"
                 >
                   <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
                   <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold mb-2 group-hover:text-gradient transition-all duration-300">
-                          {program.title}
-                        </h3>
-                        {program.description && (
-                          <p className="text-sm text-text-secondary line-clamp-2">
-                            {program.description}
-                          </p>
-                        )}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold mb-2 group-hover:text-gradient transition-all duration-300">
+                            {program.title}
+                          </h3>
+                          {program.description && (
+                            <p className="text-sm text-text-secondary line-clamp-2">
+                              {program.description}
+                            </p>
+                          )}
+                          {program.is_template && (
+                            <p className="text-xs text-text-tertiary mt-2">{t.templateLabel}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
                     <div className="flex gap-2 mt-4">
                       <Button
                         variant="secondary"
@@ -269,6 +385,40 @@ export default function ProgramsPage() {
                     className="w-full bg-background-elevated/50 backdrop-blur-md border border-border rounded-lg px-4 py-3 text-text-primary placeholder:text-text-tertiary min-h-[100px] resize-none focus:border-primary focus:ring-1 focus:ring-primary focus:bg-background-elevated transition-all duration-200"
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="templateToggle"
+                    type="checkbox"
+                    checked={isTemplate}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsTemplate(checked);
+                      if (checked) setSelectedTemplateId('');
+                    }}
+                  />
+                  <label htmlFor="templateToggle" className="text-sm text-text-secondary">
+                    {t.templateLabel}
+                  </label>
+                </div>
+                {!isTemplate && templates.length > 0 && (
+                  <div>
+                    <label className="text-sm text-text-secondary mb-2 block">
+                      {t.templateSource}
+                    </label>
+                    <select
+                      className="input"
+                      value={selectedTemplateId}
+                      onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    >
+                      <option value="">{t.noTemplate}</option>
+                      {templates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <Button
                     variant="secondary"
